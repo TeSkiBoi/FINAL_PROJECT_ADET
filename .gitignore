@@ -1,0 +1,31 @@
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# Package files
+*.jar
+*.war
+*.ear
+
+# IDE-specific files
+.idea/
+*.iml
+*.iws
+
+# Maven
+target/
+
+# Database configuration (optional, if you want to exclude sensitive data)
+# src/db/DbConnection.java
+
+# OS-specific files
+.DS_Store
+Thumbs.db
