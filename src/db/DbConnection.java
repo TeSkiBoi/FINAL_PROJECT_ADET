@@ -2,7 +2,7 @@ package db;
 import java.sql.*;
 
 public class DbConnection {
-    private static final String URL = "jdbc:mysql://localhost:3306/inventorydb";
+    private static final String URL = "jdbc:mysql://localhost:3306/barangay_biga_db";
     private static final String USER = "root";
     private static final String PASSWORD = ""; // default for XAMPP
 

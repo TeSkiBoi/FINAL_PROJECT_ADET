@@ -7,7 +7,7 @@ import db.DbConnection;
 
 public class Dashboard extends JFrame {
     private JPanel sidePanel, mainPanel, statsPanel;
-    private JButton btnHome, btnProducts, btnSuppliers, btnTransactions, btnLogout, btnReports;
+    private JButton btnHome, btnProducts, btnSuppliers, btnTransactions, btnLogout, btnReports, btnStudents, btnResidents, btnHouseholds;
     private JLabel lblTotalProducts, lblTotalSuppliers;
     private JPanel categoryStatsPanel;
 
@@ -17,6 +17,8 @@ public class Dashboard extends JFrame {
                 // Always start with login screen
                 Login loginFrame = new Login();
                 loginFrame.setVisible(true);
+                //Dashboard dashboard = new Dashboard();
+                //dashboard.setVisible(true);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -38,13 +40,16 @@ public class Dashboard extends JFrame {
         sidePanel = new JPanel();
         sidePanel.setPreferredSize(new Dimension(200, getHeight()));
         sidePanel.setBackground(new Color(45, 52, 54));
-        sidePanel.setLayout(new GridLayout(6, 1, 10, 10)); // Increased to accommodate logout button
+        sidePanel.setLayout(new GridLayout(10, 1, 10, 10)); // Increased to accommodate logout button
         sidePanel.setBorder(BorderFactory.createEmptyBorder(20, 10, 20, 10));
 
         btnHome = createMenuButton("Home", e -> showHomePanel());
         btnProducts = createMenuButton("Products", e -> showProductsPanel());
         btnSuppliers = createMenuButton("Suppliers", e -> showSuppliersPanel());
         btnTransactions = createMenuButton("Transactions", e -> showTransactionsPanel());
+        btnStudents = createMenuButton("Students", e -> showTransactionsPanel());
+        btnResidents = createMenuButton("Residents", e -> showResidentsPanel());
+        btnHouseholds = createMenuButton("Households", e -> showHouseholdsPanel());
         
         
         // Create Logout button with different style
@@ -63,7 +68,10 @@ public class Dashboard extends JFrame {
         sidePanel.add(btnProducts);
         sidePanel.add(btnSuppliers);
         sidePanel.add(btnTransactions);
+        sidePanel.add(btnResidents);
+        sidePanel.add(btnHouseholds);
         sidePanel.add(new JPanel()); // Spacer
+        sidePanel.add(btnStudents);
         sidePanel.add(btnLogout);
 
         // Main Panel
@@ -81,7 +89,7 @@ public class Dashboard extends JFrame {
     private JButton createMenuButton(String text, ActionListener listener) {
         JButton button = new JButton(text);
         button.setForeground(Color.WHITE);
-        button.setBackground(new Color(70, 130, 180));
+        button.setBackground(new Color(101, 140, 88));
         button.setFont(new Font("Arial", Font.BOLD, 14));
         button.setBorderPainted(false);
         button.setFocusPainted(false);
@@ -101,6 +109,7 @@ public class Dashboard extends JFrame {
         JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         headerPanel.setBackground(Color.WHITE);
         JLabel welcomeLabel = new JLabel("Welcome to Inventory Dashboard");
+        welcomeLabel.setForeground(new Color(85, 107, 47));
         welcomeLabel.setFont(new Font("Arial", Font.BOLD, 24));
         headerPanel.add(welcomeLabel);
         
@@ -240,6 +249,20 @@ public class Dashboard extends JFrame {
         JLabel label = new JLabel("Transactions Panel (Coming Soon)", SwingConstants.CENTER);
         label.setFont(new Font("Arial", Font.BOLD, 24));
         mainPanel.add(label);
+        mainPanel.revalidate();
+        mainPanel.repaint();
+    }
+
+    private void showResidentsPanel() {
+        mainPanel.removeAll();
+        mainPanel.add(new ui.ResidentPanel());
+        mainPanel.revalidate();
+        mainPanel.repaint();
+    }
+
+    private void showHouseholdsPanel() {
+        mainPanel.removeAll();
+        mainPanel.add(new ui.HouseholdPanel());
         mainPanel.revalidate();
         mainPanel.repaint();
     }
