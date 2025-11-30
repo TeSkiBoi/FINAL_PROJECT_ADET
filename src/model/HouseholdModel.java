@@ -7,35 +7,37 @@ import java.util.List;
 
 public class HouseholdModel {
     private int householdId;
-    private String householdNo;
     private int familyNo;
-    private String fullName;
+    private Integer householdHeadId; // Changed to household_head_id
     private String address;
     private double income;
+    private Timestamp createdAt;
+    private Timestamp updatedAt;
 
     public HouseholdModel() {}
 
-    public HouseholdModel(int householdId, String householdNo, int familyNo, String fullName, String address, double income) {
+    public HouseholdModel(int householdId, int familyNo, Integer householdHeadId, String address, double income) {
         this.householdId = householdId;
-        this.householdNo = householdNo;
         this.familyNo = familyNo;
-        this.fullName = fullName;
+        this.householdHeadId = householdHeadId;
         this.address = address;
         this.income = income;
     }
 
     public static List<HouseholdModel> getAll() {
         List<HouseholdModel> list = new ArrayList<>();
-        String sql = "SELECT household_id, household_no, family_no, full_name, address, income FROM households ORDER BY family_no";
+        String sql = "SELECT household_id, family_no, household_head_id, address, income, created_at, updated_at FROM households ORDER BY family_no";
         try (Connection conn = DbConnection.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 HouseholdModel h = new HouseholdModel();
                 h.setHouseholdId(rs.getInt("household_id"));
-                h.setHouseholdNo(rs.getString("household_no"));
                 h.setFamilyNo(rs.getInt("family_no"));
-                h.setFullName(rs.getString("full_name"));
+                int headId = rs.getInt("household_head_id");
+                h.setHouseholdHeadId(rs.wasNull() ? null : headId);
                 h.setAddress(rs.getString("address"));
                 h.setIncome(rs.getDouble("income"));
+                h.setCreatedAt(rs.getTimestamp("created_at"));
+                h.setUpdatedAt(rs.getTimestamp("updated_at"));
                 list.add(h);
             }
         } catch (SQLException e) {
@@ -45,10 +47,14 @@ public class HouseholdModel {
     }
 
     public boolean create() {
-        String sql = "INSERT INTO households (family_no, full_name, address, income) VALUES (?, ?, ?, ?)";
+        String sql = "INSERT INTO households (family_no, household_head_id, address, income) VALUES (?, ?, ?, ?)";
         try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, this.familyNo);
-            ps.setString(2, this.fullName);
+            if (this.householdHeadId == null) {
+                ps.setNull(2, Types.INTEGER);
+            } else {
+                ps.setInt(2, this.householdHeadId);
+            }
             ps.setString(3, this.address);
             ps.setDouble(4, this.income);
             int rows = ps.executeUpdate();
@@ -65,10 +71,14 @@ public class HouseholdModel {
     }
 
     public boolean update() {
-        String sql = "UPDATE households SET family_no=?, full_name=?, address=?, income=? WHERE household_id=?";
+        String sql = "UPDATE households SET family_no=?, household_head_id=?, address=?, income=? WHERE household_id=?";
         try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, this.familyNo);
-            ps.setString(2, this.fullName);
+            if (this.householdHeadId == null) {
+                ps.setNull(2, Types.INTEGER);
+            } else {
+                ps.setInt(2, this.householdHeadId);
+            }
             ps.setString(3, this.address);
             ps.setDouble(4, this.income);
             ps.setInt(5, this.householdId);
@@ -93,14 +103,16 @@ public class HouseholdModel {
     // Getters and Setters
     public int getHouseholdId() { return householdId; }
     public void setHouseholdId(int householdId) { this.householdId = householdId; }
-    public String getHouseholdNo() { return householdNo; }
-    public void setHouseholdNo(String householdNo) { this.householdNo = householdNo; }
     public int getFamilyNo() { return familyNo; }
     public void setFamilyNo(int familyNo) { this.familyNo = familyNo; }
-    public String getFullName() { return fullName; }
-    public void setFullName(String fullName) { this.fullName = fullName; }
+    public Integer getHouseholdHeadId() { return householdHeadId; }
+    public void setHouseholdHeadId(Integer householdHeadId) { this.householdHeadId = householdHeadId; }
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
     public double getIncome() { return income; }
     public void setIncome(double income) { this.income = income; }
+    public Timestamp getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Timestamp createdAt) { this.createdAt = createdAt; }
+    public Timestamp getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Timestamp updatedAt) { this.updatedAt = updatedAt; }
 }

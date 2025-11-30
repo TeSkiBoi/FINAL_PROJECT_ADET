@@ -7,7 +7,7 @@ import java.util.List;
 
 public class ResidentModel {
     private int residentId;
-    private int householdId;
+    private Integer householdId; // Changed to Integer to allow null
     private String firstName;
     private String middleName;
     private String lastName;
@@ -19,7 +19,7 @@ public class ResidentModel {
 
     public ResidentModel() {}
 
-    public ResidentModel(int residentId, int householdId, String firstName, String middleName, String lastName, Date birthDate, int age, String gender, String contactNo, String email) {
+    public ResidentModel(int residentId, Integer householdId, String firstName, String middleName, String lastName, Date birthDate, int age, String gender, String contactNo, String email) {
         this.residentId = residentId;
         this.householdId = householdId;
         this.firstName = firstName;
@@ -41,7 +41,9 @@ public class ResidentModel {
             while (rs.next()) {
                 ResidentModel r = new ResidentModel();
                 r.setResidentId(rs.getInt("resident_id"));
-                r.setHouseholdId(rs.getInt("household_id"));
+                // Handle nullable household_id
+                int hId = rs.getInt("household_id");
+                r.setHouseholdId(rs.wasNull() ? null : hId);
                 r.setFirstName(rs.getString("first_name"));
                 r.setMiddleName(rs.getString("middle_name"));
                 r.setLastName(rs.getString("last_name"));
@@ -61,7 +63,12 @@ public class ResidentModel {
     public boolean create() {
         String sql = "INSERT INTO residents (household_id, first_name, middle_name, last_name, birth_date, age, gender, contact_no, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setInt(1, this.householdId);
+            // Handle nullable household_id
+            if (this.householdId == null) {
+                ps.setNull(1, Types.INTEGER);
+            } else {
+                ps.setInt(1, this.householdId);
+            }
             ps.setString(2, this.firstName);
             ps.setString(3, this.middleName);
             ps.setString(4, this.lastName);
@@ -86,7 +93,12 @@ public class ResidentModel {
     public boolean update() {
         String sql = "UPDATE residents SET household_id=?, first_name=?, middle_name=?, last_name=?, birth_date=?, age=?, gender=?, contact_no=?, email=? WHERE resident_id=?";
         try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, this.householdId);
+            // Handle nullable household_id
+            if (this.householdId == null) {
+                ps.setNull(1, Types.INTEGER);
+            } else {
+                ps.setInt(1, this.householdId);
+            }
             ps.setString(2, this.firstName);
             ps.setString(3, this.middleName);
             ps.setString(4, this.lastName);
@@ -118,8 +130,8 @@ public class ResidentModel {
 
     public int getResidentId() { return residentId; }
     public void setResidentId(int residentId) { this.residentId = residentId; }
-    public int getHouseholdId() { return householdId; }
-    public void setHouseholdId(int householdId) { this.householdId = householdId; }
+    public Integer getHouseholdId() { return householdId; }
+    public void setHouseholdId(Integer householdId) { this.householdId = householdId; }
     public String getFirstName() { return firstName; }
     public void setFirstName(String firstName) { this.firstName = firstName; }
     public String getMiddleName() { return middleName; }

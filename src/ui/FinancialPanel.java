@@ -2,6 +2,8 @@ package ui;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import model.SessionManager;
+import model.User;
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.*;
@@ -14,10 +16,28 @@ public class FinancialPanel extends JPanel {
 
     public FinancialPanel(){
         setLayout(new BorderLayout(10,10));
+        setBackground(Theme.PRIMARY_LIGHT);
+        
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        btnRefresh = new JButton("Refresh"); btnAdd = new JButton("Add"); btnEdit = new JButton("Edit"); btnDelete = new JButton("Delete");
+        top.setBackground(Theme.PRIMARY_LIGHT);
+        btnRefresh = new JButton("Refresh"); 
+        btnAdd = new JButton("Add"); 
+        btnEdit = new JButton("Edit"); 
+        btnDelete = new JButton("Delete");
         style(btnRefresh); style(btnAdd); style(btnEdit); style(btnDelete);
         top.add(btnRefresh); top.add(btnAdd); top.add(btnEdit); top.add(btnDelete);
+        
+        // Check if user can modify (Admin or Staff)
+        User current = SessionManager.getInstance().getCurrentUser();
+        boolean canModify = false;
+        if (current != null) {
+            String role = current.getRoleId();
+            if ("1".equals(role) || "2".equals(role)) canModify = true;
+        }
+        btnAdd.setEnabled(canModify);
+        btnEdit.setEnabled(canModify);
+        btnDelete.setEnabled(canModify);
+        
         add(top, BorderLayout.NORTH);
 
         model = new DefaultTableModel(new String[]{"ID","Date","Type","Category","Amount","Description","Method"},0){ @Override public boolean isCellEditable(int r,int c){return false;} };

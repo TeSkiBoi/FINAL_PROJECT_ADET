@@ -188,13 +188,28 @@ public class Login extends JFrame {
             SessionManager.getInstance().setCurrentUser(currentUser);
 
             JOptionPane.showMessageDialog(this,
-                    "Login successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    "Login successful! Welcome " + currentUser.getFullname(), 
+                    "Success", 
+                    JOptionPane.INFORMATION_MESSAGE);
 
             // Open dashboard based on role
-            if ("1".equalsIgnoreCase(currentUser.getRoleId())) {
+            String roleId = currentUser.getRoleId();
+            
+            if ("1".equals(roleId)) {
+                // Admin - Full access to Dashboard
+                new Dashboard().setVisible(true);
+            } else if ("2".equals(roleId)) {
+                // Staff - Limited access to Dashboard
+                // The Dashboard already checks role and shows limited menu
                 new Dashboard().setVisible(true);
             } else {
-                new ClientDashboard().setVisible(true);
+                // Other roles - ClientDashboard (if exists) or default Dashboard
+                try {
+                    new ClientDashboard().setVisible(true);
+                } catch (Exception ex) {
+                    // If ClientDashboard doesn't work, use regular Dashboard
+                    new Dashboard().setVisible(true);
+                }
             }
 
             dispose(); // close login window

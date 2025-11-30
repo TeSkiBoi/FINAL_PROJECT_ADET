@@ -19,6 +19,7 @@ public class ProductPanel extends JPanel {
     private DefaultTableModel model;
     private JTextField txtSearch;
     private JButton btnAdd, btnUpdate, btnDelete, btnRefresh, btnSearch;
+    private TableRowSorter<DefaultTableModel> sorter;
 
     public ProductPanel() {
         setLayout(new BorderLayout(10, 10));
@@ -28,10 +29,10 @@ public class ProductPanel extends JPanel {
         top.setBackground(Theme.PRIMARY_LIGHT);
         txtSearch = new JTextField(30);
         btnSearch = new JButton("🔍 Search");
-        btnRefresh = new JButton("Refresh");
-        btnAdd = new JButton("Add Project");
-        btnUpdate = new JButton("Edit Project");
-        btnDelete = new JButton("Delete Project");
+        btnRefresh = new JButton("🔄 Refresh");
+        btnAdd = new JButton("+ Add Project");
+        btnUpdate = new JButton("✏ Edit Project");
+        btnDelete = new JButton("🗑 Delete Project");
 
         styleButton(btnSearch);
         styleButton(btnRefresh);
@@ -55,6 +56,8 @@ public class ProductPanel extends JPanel {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
         table = new JTable(model);
+        sorter = new TableRowSorter<>(model);
+        table.setRowSorter(sorter);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         add(new JScrollPane(table), BorderLayout.CENTER);
 
