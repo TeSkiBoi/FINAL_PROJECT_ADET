@@ -4,10 +4,13 @@ import java.awt.*;
 import java.sql.*;
 import java.awt.event.*;
 import db.DbConnection;
+import model.SessionManager;
+import model.User;
+import model.UserModel;
 
 public class Dashboard extends JFrame {
     private JPanel sidePanel, mainPanel, statsPanel;
-    private JButton btnHome, btnProducts, btnSuppliers, btnTransactions, btnLogout, btnReports, btnStudents, btnResidents, btnHouseholds;
+    private JButton btnHome, btnProducts, btnSuppliers, btnTransactions, btnLogout, btnReports, btnStudents, btnResidents, btnHouseholds, btnUsers, btnLogs;
     private JLabel lblTotalProducts, lblTotalSuppliers;
     private JPanel categoryStatsPanel;
 
@@ -17,8 +20,6 @@ public class Dashboard extends JFrame {
                 // Always start with login screen
                 Login loginFrame = new Login();
                 loginFrame.setVisible(true);
-                //Dashboard dashboard = new Dashboard();
-                //dashboard.setVisible(true);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -26,11 +27,11 @@ public class Dashboard extends JFrame {
     }
 
     public Dashboard() {
-        setTitle("Inventory System Dashboard");
+        setTitle("BMS Admin Dashboard");
         setSize(1200, 800);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
-        
+
         // Main container with padding
         JPanel mainContainer = new JPanel(new BorderLayout(10, 10));
         mainContainer.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -38,29 +39,31 @@ public class Dashboard extends JFrame {
 
         // Sidebar
         sidePanel = new JPanel();
-        sidePanel.setPreferredSize(new Dimension(200, getHeight()));
-        sidePanel.setBackground(new Color(45, 52, 54));
-        sidePanel.setLayout(new GridLayout(10, 1, 10, 10)); // Increased to accommodate logout button
+        sidePanel.setPreferredSize(new Dimension(220, getHeight()));
+        sidePanel.setBackground(new Color(44,44,44)); // dark sidebar
+        sidePanel.setLayout(new GridLayout(14, 1, 8, 8)); // accommodate buttons
         sidePanel.setBorder(BorderFactory.createEmptyBorder(20, 10, 20, 10));
 
         btnHome = createMenuButton("Home", e -> showHomePanel());
-        btnProducts = createMenuButton("Products", e -> showProductsPanel());
-        btnSuppliers = createMenuButton("Suppliers", e -> showSuppliersPanel());
-        btnTransactions = createMenuButton("Transactions", e -> showTransactionsPanel());
-        btnStudents = createMenuButton("Students", e -> showTransactionsPanel());
+        btnProducts = createMenuButton("Projects", e -> showProductsPanel());
+        btnSuppliers = createMenuButton("Officials", e -> showSuppliersPanel());
+        btnTransactions = createMenuButton("Blotter/Incidents", e -> showTransactionsPanel());
+        btnStudents = createMenuButton("Projects (alt)", e -> showTransactionsPanel());
         btnResidents = createMenuButton("Residents", e -> showResidentsPanel());
         btnHouseholds = createMenuButton("Households", e -> showHouseholdsPanel());
-        
-        
+        btnReports = createMenuButton("Financial", e -> showReportsPanel());
+        btnUsers = createMenuButton("Users", e -> showUsersPanel());
+        btnLogs = createMenuButton("Activity Log", e -> showLogsPanel());
+
         // Create Logout button with different style
         btnLogout = createMenuButton("Logout", e -> performLogout());
-        btnLogout.setBackground(new Color(192, 57, 43)); // Red color for logout
+        btnLogout.setBackground(Theme.ACCENT);
         btnLogout.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) {
-                btnLogout.setBackground(new Color(231, 76, 60));
+                btnLogout.setBackground(Theme.ACCENT.darker());
             }
             public void mouseExited(MouseEvent e) {
-                btnLogout.setBackground(new Color(192, 57, 43));
+                btnLogout.setBackground(Theme.ACCENT);
             }
         });
 
@@ -70,13 +73,28 @@ public class Dashboard extends JFrame {
         sidePanel.add(btnTransactions);
         sidePanel.add(btnResidents);
         sidePanel.add(btnHouseholds);
+        sidePanel.add(btnReports);
         sidePanel.add(new JPanel()); // Spacer
-        sidePanel.add(btnStudents);
+
+        // Show Users & Logs only to Admin (role_id == 1)
+        User current = SessionManager.getInstance().getCurrentUser();
+        boolean isAdmin = false;
+        if (current != null && "1".equals(current.getRoleId())) isAdmin = true;
+        if (isAdmin) {
+            sidePanel.add(btnUsers);
+            sidePanel.add(btnLogs);
+        } else {
+            // keep space alignment
+            sidePanel.add(new JPanel());
+            sidePanel.add(new JPanel());
+        }
+
+        sidePanel.add(new JPanel());
         sidePanel.add(btnLogout);
 
         // Main Panel
         mainPanel = new JPanel(new BorderLayout());
-        mainPanel.setBackground(Color.WHITE);
+        mainPanel.setBackground(Theme.PRIMARY_LIGHT);
 
         // Add panels to frame
         mainContainer.add(sidePanel, BorderLayout.WEST);
@@ -89,7 +107,7 @@ public class Dashboard extends JFrame {
     private JButton createMenuButton(String text, ActionListener listener) {
         JButton button = new JButton(text);
         button.setForeground(Color.WHITE);
-        button.setBackground(new Color(101, 140, 88));
+        button.setBackground(Theme.PRIMARY);
         button.setFont(new Font("Arial", Font.BOLD, 14));
         button.setBorderPainted(false);
         button.setFocusPainted(false);
@@ -100,42 +118,55 @@ public class Dashboard extends JFrame {
 
     private void showHomePanel() {
         mainPanel.removeAll();
-        
-        // Create statistics panel
         JPanel homePanel = new JPanel(new BorderLayout(10, 10));
-        homePanel.setBackground(Color.WHITE);
-        
-        // Welcome header
-        JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        headerPanel.setBackground(Color.WHITE);
-        JLabel welcomeLabel = new JLabel("Welcome to Inventory Dashboard");
-        welcomeLabel.setForeground(new Color(85, 107, 47));
+        homePanel.setBackground(Theme.PRIMARY_LIGHT);
+
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
+
+        String welcomeText = "Welcome";
+        String subText = "";
+        if (currentUserAvailable()) {
+            User current = SessionManager.getInstance().getCurrentUser();
+            welcomeText = "Welcome, " + current.getFullname();
+            UserModel um = new UserModel();
+            String roleName = um.getRoleName(current.getRoleId());
+            subText = roleName != null ? roleName : "";
+        }
+
+        JPanel titleWrap = new JPanel(new GridLayout(2,1));
+        titleWrap.setBackground(Theme.PRIMARY_LIGHT);
+        JLabel welcomeLabel = new JLabel(welcomeText);
+        welcomeLabel.setForeground(Theme.PRIMARY);
         welcomeLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        headerPanel.add(welcomeLabel);
-        
-        // Stats Grid
+        titleWrap.add(welcomeLabel);
+        if (!subText.isEmpty()) {
+            JLabel roleLabel = new JLabel(subText);
+            roleLabel.setForeground(Theme.SECONDARY);
+            roleLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+            titleWrap.add(roleLabel);
+        }
+        headerPanel.add(titleWrap, BorderLayout.WEST);
+
         JPanel statsGrid = new JPanel(new GridLayout(2, 2, 15, 15));
-        statsGrid.setBackground(Color.WHITE);
+        statsGrid.setBackground(Theme.PRIMARY_LIGHT);
         statsGrid.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // Total Products Card
-        JPanel productsCard = createStatCard("Total Products", loadTotalProducts());
-        statsGrid.add(productsCard);
+        JPanel projectsCard = createStatCard("Total Projects", loadTotalProjects());
+        statsGrid.add(projectsCard);
 
-        // Total Suppliers Card
-        JPanel suppliersCard = createStatCard("Total Suppliers", loadTotalSuppliers());
-        statsGrid.add(suppliersCard);
+        JPanel residentsCard = createStatCard("Total Residents", loadTotalResidents());
+        statsGrid.add(residentsCard);
 
-        // Category Stats Panel
         JPanel categoryStats = new JPanel(new BorderLayout(10, 10));
-        categoryStats.setBorder(BorderFactory.createTitledBorder("Products by Category"));
-        categoryStats.setBackground(Color.WHITE);
-        
-        // Create category breakdown
+        categoryStats.setBorder(BorderFactory.createTitledBorder("Projects Breakdown"));
+        categoryStats.setBackground(Theme.PRIMARY_LIGHT);
+
         JPanel categoryBreakdown = new JPanel(new GridLayout(0, 1, 5, 5));
-        categoryBreakdown.setBackground(Color.WHITE);
+        categoryBreakdown.setBackground(Theme.PRIMARY_LIGHT);
         loadCategoryStats(categoryBreakdown);
-        
+
         JScrollPane categoryScroll = new JScrollPane(categoryBreakdown);
         categoryScroll.setPreferredSize(new Dimension(300, 200));
         categoryStats.add(categoryScroll);
@@ -144,55 +175,62 @@ public class Dashboard extends JFrame {
 
         homePanel.add(headerPanel, BorderLayout.NORTH);
         homePanel.add(statsGrid, BorderLayout.CENTER);
-        
+
         mainPanel.add(homePanel);
         mainPanel.revalidate();
         mainPanel.repaint();
     }
 
+    private boolean currentUserAvailable() {
+        return SessionManager.getInstance().getCurrentUser() != null;
+    }
+
     private JPanel createStatCard(String title, int value) {
         JPanel card = new JPanel(new BorderLayout(5, 5));
-        card.setBackground(new Color(240, 240, 240));
+        card.setBackground(Theme.PRIMARY_LIGHT);
         card.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(200, 200, 200)),
+            BorderFactory.createLineBorder(Theme.PRIMARY),
             BorderFactory.createEmptyBorder(15, 15, 15, 15)
         ));
 
         JLabel titleLabel = new JLabel(title);
         titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
-        
+        titleLabel.setForeground(Theme.PRIMARY);
+
         JLabel valueLabel = new JLabel(String.valueOf(value));
         valueLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        valueLabel.setForeground(new Color(70, 130, 180));
+        valueLabel.setForeground(Theme.SECONDARY);
 
         card.add(titleLabel, BorderLayout.NORTH);
         card.add(valueLabel, BorderLayout.CENTER);
-        
+
         return card;
     }
 
     private void loadCategoryStats(JPanel panel) {
         try (Connection conn = DbConnection.getConnection()) {
-            String sql = "SELECT category, COUNT(*) as count FROM products GROUP BY category";
+            String sql = "SELECT project_category AS category, COUNT(*) as count FROM barangay_projects GROUP BY project_category";
             Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
 
             while (rs.next()) {
                 String category = rs.getString("category");
                 int count = rs.getInt("count");
-                
+
                 JPanel categoryRow = new JPanel(new BorderLayout(10, 0));
-                categoryRow.setBackground(Color.WHITE);
-                
+                categoryRow.setBackground(Theme.PRIMARY_LIGHT);
+
                 JLabel categoryLabel = new JLabel(category);
                 categoryLabel.setFont(new Font("Arial", Font.PLAIN, 14));
-                
+                categoryLabel.setForeground(Theme.PRIMARY);
+
                 JLabel countLabel = new JLabel(String.valueOf(count));
                 countLabel.setFont(new Font("Arial", Font.BOLD, 14));
-                
+                countLabel.setForeground(Theme.PRIMARY);
+
                 categoryRow.add(categoryLabel, BorderLayout.WEST);
                 categoryRow.add(countLabel, BorderLayout.EAST);
-                
+
                 panel.add(categoryRow);
             }
         } catch (SQLException e) {
@@ -204,10 +242,10 @@ public class Dashboard extends JFrame {
         }
     }
 
-    private int loadTotalProducts() {
+    private int loadTotalProjects() {
         try (Connection conn = DbConnection.getConnection()) {
             Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM products");
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM barangay_projects");
             if (rs.next()) {
                 return rs.getInt("count");
             }
@@ -217,10 +255,10 @@ public class Dashboard extends JFrame {
         return 0;
     }
 
-    private int loadTotalSuppliers() {
+    private int loadTotalResidents() {
         try (Connection conn = DbConnection.getConnection()) {
             Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM suppliers");
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM residents");
             if (rs.next()) {
                 return rs.getInt("count");
             }
@@ -239,16 +277,24 @@ public class Dashboard extends JFrame {
 
     private void showSuppliersPanel() {
         mainPanel.removeAll();
-        mainPanel.add(new SupplierPanel());
+        // show Barangay Officials panel instead of supplier wording
+        mainPanel.add(new OfficialsPanel());
         mainPanel.revalidate();
         mainPanel.repaint();
     }
 
     private void showTransactionsPanel() {
         mainPanel.removeAll();
-        JLabel label = new JLabel("Transactions Panel (Coming Soon)", SwingConstants.CENTER);
-        label.setFont(new Font("Arial", Font.BOLD, 24));
-        mainPanel.add(label);
+        // show Blotter/Incidents panel
+        mainPanel.add(new BlotterPanel());
+        mainPanel.revalidate();
+        mainPanel.repaint();
+    }
+
+    private void showReportsPanel() {
+        mainPanel.removeAll();
+        // show Financial panel
+        mainPanel.add(new FinancialPanel());
         mainPanel.revalidate();
         mainPanel.repaint();
     }
@@ -267,6 +313,20 @@ public class Dashboard extends JFrame {
         mainPanel.repaint();
     }
 
+    private void showUsersPanel() {
+        mainPanel.removeAll();
+        mainPanel.add(new UsersPanel());
+        mainPanel.revalidate();
+        mainPanel.repaint();
+    }
+
+    private void showLogsPanel() {
+        mainPanel.removeAll();
+        mainPanel.add(new ActivityLogPanel());
+        mainPanel.revalidate();
+        mainPanel.repaint();
+    }
+
     private void performLogout() {
         int confirm = JOptionPane.showConfirmDialog(
             this,
@@ -277,6 +337,9 @@ public class Dashboard extends JFrame {
         );
 
         if (confirm == JOptionPane.YES_OPTION) {
+            // Log out via SessionManager to record logout
+            SessionManager.getInstance().logout();
+
             // Show goodbye message
             JOptionPane.showMessageDialog(
                 this,
@@ -284,11 +347,11 @@ public class Dashboard extends JFrame {
                 "Goodbye",
                 JOptionPane.INFORMATION_MESSAGE
             );
-            
+
             // Create and show login form
             Login loginFrame = new Login();
             loginFrame.setVisible(true);
-            
+
             // Close dashboard
             this.dispose();
         }

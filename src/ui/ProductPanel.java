@@ -5,341 +5,267 @@ import java.awt.*;
 import java.awt.event.*;
 import java.sql.*;
 import db.DbConnection;
+import model.SessionManager;
+import model.User;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 
+/**
+ * Projects panel adapted from ProductPanel: manages barangay_projects table.
+ * Uses a modal dialog for Add/Edit since projects have multiple fields.
+ */
 public class ProductPanel extends JPanel {
     private JTable table;
     private DefaultTableModel model;
-    private JTextField txtName, txtQuantity, txtPrice, txtSearch;
-    private JComboBox<String> categoryCombo;
-    private JButton btnAdd, btnUpdate, btnDelete, btnClear, btnSearch;
-    private static final String[] CATEGORIES = {"Electronics", "Clothing", "Food", "Books", "Furniture", "Other"};
+    private JTextField txtSearch;
+    private JButton btnAdd, btnUpdate, btnDelete, btnRefresh, btnSearch;
 
     public ProductPanel() {
         setLayout(new BorderLayout(10, 10));
-        
-        // Search Panel
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
-        searchPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createTitledBorder("Search Product"),
-            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
-        
-        txtSearch = new JTextField(20);
+
+        // Top toolbar
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        top.setBackground(Theme.PRIMARY_LIGHT);
+        txtSearch = new JTextField(30);
         btnSearch = new JButton("🔍 Search");
+        btnRefresh = new JButton("Refresh");
+        btnAdd = new JButton("Add Project");
+        btnUpdate = new JButton("Edit Project");
+        btnDelete = new JButton("Delete Project");
+
         styleButton(btnSearch);
-        searchPanel.add(new JLabel("Search:"));
-        searchPanel.add(txtSearch);
-        searchPanel.add(btnSearch);
-        
-        // Form Panel
-        JPanel formPanel = new JPanel(new BorderLayout(10, 10));
-        JPanel inputPanel = new JPanel(new GridLayout(4, 2, 10, 10));
-        inputPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createTitledBorder("Product Details"),
-            BorderFactory.createEmptyBorder(10, 10, 10, 10)));
-
-        // Name field
-        JLabel lblName = new JLabel("Name:");
-        lblName.setFont(new Font("Arial", Font.BOLD, 12));
-        inputPanel.add(lblName);
-        txtName = new JTextField();
-        inputPanel.add(txtName);
-        
-        // Category dropdown
-        JLabel lblCategory = new JLabel("Category:");
-        lblCategory.setFont(new Font("Arial", Font.BOLD, 12));
-        inputPanel.add(lblCategory);
-        categoryCombo = new JComboBox<>(CATEGORIES);
-        categoryCombo.setBackground(Color.WHITE);
-        inputPanel.add(categoryCombo);
-        
-        // Quantity field
-        JLabel lblQuantity = new JLabel("Quantity:");
-        lblQuantity.setFont(new Font("Arial", Font.BOLD, 12));
-        inputPanel.add(lblQuantity);
-        txtQuantity = new JTextField();
-        inputPanel.add(txtQuantity);
-        
-        // Price field
-        JLabel lblPrice = new JLabel("Price:");
-        lblPrice.setFont(new Font("Arial", Font.BOLD, 12));
-        inputPanel.add(lblPrice);
-        txtPrice = new JTextField();
-        inputPanel.add(txtPrice);
-
-        // Buttons Panel
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
-        btnAdd = new JButton("Add Product");
-        btnUpdate = new JButton("Update");
-        btnDelete = new JButton("Delete");
-        btnClear = new JButton("Clear");
-
+        styleButton(btnRefresh);
         styleButton(btnAdd);
         styleButton(btnUpdate);
         styleButton(btnDelete);
-        styleButton(btnClear);
 
-        btnPanel.add(btnAdd);
-        btnPanel.add(btnUpdate);
-        btnPanel.add(btnDelete);
-        btnPanel.add(btnClear);
+        top.add(new JLabel("Search:"));
+        top.add(txtSearch);
+        top.add(btnSearch);
+        top.add(btnRefresh);
+        top.add(Box.createHorizontalStrut(20));
+        top.add(btnAdd);
+        top.add(btnUpdate);
+        top.add(btnDelete);
 
-        formPanel.add(inputPanel, BorderLayout.CENTER);
-        formPanel.add(btnPanel, BorderLayout.SOUTH);
-
-        // Top Panel
-        JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.add(searchPanel, BorderLayout.NORTH);
-        topPanel.add(formPanel, BorderLayout.CENTER);
-        add(topPanel, BorderLayout.NORTH);
+        add(top, BorderLayout.NORTH);
 
         // Table
-        model = new DefaultTableModel(
-            new String[]{"ID", "Name", "Category", "Quantity", "Price"}, 
-            0
-        ) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
+        model = new DefaultTableModel(new String[]{"ID","Name","Status","Start Date","End Date","Proponent","Budget","Progress"}, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
         };
-        
         table = new JTable(model);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.getTableHeader().setReorderingAllowed(false);
-        
-        // Table selection listener
-        table.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting() && table.getSelectedRow() != -1) {
-                int row = table.getSelectedRow();
-                txtName.setText(model.getValueAt(row, 1).toString());
-                categoryCombo.setSelectedItem(model.getValueAt(row, 2).toString());
-                txtQuantity.setText(model.getValueAt(row, 3).toString());
-                txtPrice.setText(model.getValueAt(row, 4).toString());
+        add(new JScrollPane(table), BorderLayout.CENTER);
+
+        // Event handlers
+        btnRefresh.addActionListener(e -> loadProjects());
+        btnSearch.addActionListener(e -> searchProjects());
+        txtSearch.addActionListener(e -> searchProjects());
+        btnAdd.addActionListener(e -> openProjectDialog(null));
+        btnUpdate.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row == -1) { JOptionPane.showMessageDialog(this, "Select a project to edit", "Select", JOptionPane.WARNING_MESSAGE); return; }
+            int id = (Integer)model.getValueAt(row,0);
+            openProjectDialog(id);
+        });
+        btnDelete.addActionListener(e -> deleteProject());
+
+        // Privilege: only Admin or Staff can modify
+        User current = SessionManager.getInstance().getCurrentUser();
+        boolean canModify = false;
+        if (current != null) {
+            String role = current.getRoleId();
+            if ("1".equals(role) || "2".equals(role)) canModify = true;
+        }
+        btnAdd.setEnabled(canModify);
+        btnUpdate.setEnabled(canModify);
+        btnDelete.setEnabled(canModify);
+
+        loadProjects();
+    }
+
+    private void styleButton(JButton b) {
+        b.setBackground(Theme.PRIMARY);
+        b.setForeground(Color.WHITE);
+        b.setFocusPainted(false);
+        b.setBorderPainted(false);
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    }
+
+    private void loadProjects() {
+        model.setRowCount(0);
+        try (Connection conn = DbConnection.getConnection()) {
+            String sql = "SELECT project_id, project_name, project_status, start_date, end_date, proponent, total_budget, progress_percentage FROM barangay_projects ORDER BY project_id";
+            Statement st = conn.createStatement();
+            ResultSet rs = st.executeQuery(sql);
+            while (rs.next()) {
+                model.addRow(new Object[]{
+                    rs.getInt("project_id"),
+                    rs.getString("project_name"),
+                    rs.getString("project_status"),
+                    rs.getDate("start_date"),
+                    rs.getDate("end_date"),
+                    rs.getString("proponent"),
+                    rs.getDouble("total_budget"),
+                    rs.getInt("progress_percentage")
+                });
             }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error loading projects: "+e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void searchProjects() {
+        String term = txtSearch.getText().trim();
+        if (term.isEmpty()) { loadProjects(); return; }
+        model.setRowCount(0);
+        try (Connection conn = DbConnection.getConnection()) {
+            String sql = "SELECT project_id, project_name, project_status, start_date, end_date, proponent, total_budget, progress_percentage FROM barangay_projects WHERE project_name LIKE ? OR proponent LIKE ? ORDER BY project_id";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            String t = "%"+term+"%";
+            ps.setString(1,t); ps.setString(2,t);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                model.addRow(new Object[]{
+                    rs.getInt("project_id"),
+                    rs.getString("project_name"),
+                    rs.getString("project_status"),
+                    rs.getDate("start_date"),
+                    rs.getDate("end_date"),
+                    rs.getString("proponent"),
+                    rs.getDouble("total_budget"),
+                    rs.getInt("progress_percentage")
+                });
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Error searching projects: "+e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void openProjectDialog(Integer projectId) {
+        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), projectId==null?"Add Project":"Edit Project", Dialog.ModalityType.APPLICATION_MODAL);
+        JPanel p = new JPanel(new GridLayout(0,2,8,8));
+        p.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
+
+        JTextField txtName = new JTextField();
+        JTextArea txtDesc = new JTextArea(4,20);
+        JComboBox<String> cboStatus = new JComboBox<>(new String[]{"Planning","Ongoing","Completed","On Hold","Cancelled"});
+        JTextField txtStart = new JTextField("yyyy-MM-dd");
+        JTextField txtEnd = new JTextField("yyyy-MM-dd");
+        JTextField txtProponent = new JTextField();
+        JTextField txtBudget = new JTextField();
+        JTextField txtProgress = new JTextField();
+        JTextArea txtRemarks = new JTextArea(3,20);
+
+        p.add(new JLabel("Project Name:")); p.add(txtName);
+        p.add(new JLabel("Description:")); p.add(new JScrollPane(txtDesc));
+        p.add(new JLabel("Status:")); p.add(cboStatus);
+        p.add(new JLabel("Start Date:")); p.add(txtStart);
+        p.add(new JLabel("End Date:")); p.add(txtEnd);
+        p.add(new JLabel("Proponent:")); p.add(txtProponent);
+        p.add(new JLabel("Total Budget:")); p.add(txtBudget);
+        p.add(new JLabel("Progress (%):")); p.add(txtProgress);
+        p.add(new JLabel("Remarks:")); p.add(new JScrollPane(txtRemarks));
+
+        if (projectId != null) {
+            // load existing
+            try (Connection conn = DbConnection.getConnection()) {
+                String sql = "SELECT * FROM barangay_projects WHERE project_id = ?";
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ps.setInt(1, projectId);
+                ResultSet rs = ps.executeQuery();
+                if (rs.next()) {
+                    txtName.setText(rs.getString("project_name"));
+                    txtDesc.setText(rs.getString("project_description"));
+                    cboStatus.setSelectedItem(rs.getString("project_status"));
+                    Date sd = rs.getDate("start_date"); if (sd!=null) txtStart.setText(sd.toString());
+                    Date ed = rs.getDate("end_date"); if (ed!=null) txtEnd.setText(ed.toString());
+                    txtProponent.setText(rs.getString("proponent"));
+                    txtBudget.setText(String.valueOf(rs.getDouble("total_budget")));
+                    txtProgress.setText(String.valueOf(rs.getInt("progress_percentage")));
+                    txtRemarks.setText(rs.getString("remarks"));
+                }
+            } catch (SQLException e) { JOptionPane.showMessageDialog(this, "Error loading project: "+e.getMessage()); }
+        }
+
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton save = new JButton("Save");
+        JButton cancel = new JButton("Cancel");
+        styleButton(save); styleButton(cancel);
+        btns.add(save); btns.add(cancel);
+
+        save.addActionListener(e -> {
+            // validate minimal
+            if (txtName.getText().trim().isEmpty()) { JOptionPane.showMessageDialog(dlg, "Project name required"); return; }
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            java.sql.Date sdate = null, edate = null;
+            try {
+                if (!txtStart.getText().trim().isEmpty() && !txtStart.getText().equals("yyyy-MM-dd")) sdate = java.sql.Date.valueOf(txtStart.getText().trim());
+                if (!txtEnd.getText().trim().isEmpty() && !txtEnd.getText().equals("yyyy-MM-dd")) edate = java.sql.Date.valueOf(txtEnd.getText().trim());
+            } catch (IllegalArgumentException ex) { JOptionPane.showMessageDialog(dlg, "Dates must be yyyy-MM-dd"); return; }
+
+            try (Connection conn = DbConnection.getConnection()) {
+                if (projectId == null) {
+                    String sql = "INSERT INTO barangay_projects (project_name, project_description, project_status, start_date, end_date, proponent, total_budget, budget_utilized, progress_percentage, remarks) VALUES (?,?,?,?,?,?,?,?,?,?)";
+                    PreparedStatement ps = conn.prepareStatement(sql);
+                    ps.setString(1, txtName.getText().trim());
+                    ps.setString(2, txtDesc.getText().trim());
+                    ps.setString(3, cboStatus.getSelectedItem().toString());
+                    ps.setDate(4, sdate);
+                    ps.setDate(5, edate);
+                    ps.setString(6, txtProponent.getText().trim());
+                    ps.setDouble(7, parseDoubleSafe(txtBudget.getText().trim()));
+                    ps.setDouble(8, 0.0);
+                    ps.setInt(9, parseIntSafe(txtProgress.getText().trim()));
+                    ps.setString(10, txtRemarks.getText().trim());
+                    ps.executeUpdate();
+                    JOptionPane.showMessageDialog(dlg, "Project added");
+                } else {
+                    String sql = "UPDATE barangay_projects SET project_name=?, project_description=?, project_status=?, start_date=?, end_date=?, proponent=?, total_budget=?, progress_percentage=?, remarks=? WHERE project_id=?";
+                    PreparedStatement ps = conn.prepareStatement(sql);
+                    ps.setString(1, txtName.getText().trim());
+                    ps.setString(2, txtDesc.getText().trim());
+                    ps.setString(3, cboStatus.getSelectedItem().toString());
+                    ps.setDate(4, sdate);
+                    ps.setDate(5, edate);
+                    ps.setString(6, txtProponent.getText().trim());
+                    ps.setDouble(7, parseDoubleSafe(txtBudget.getText().trim()));
+                    ps.setInt(8, parseIntSafe(txtProgress.getText().trim()));
+                    ps.setString(9, txtRemarks.getText().trim());
+                    ps.setInt(10, projectId);
+                    ps.executeUpdate();
+                    JOptionPane.showMessageDialog(dlg, "Project updated");
+                }
+                dlg.dispose();
+                loadProjects();
+            } catch (SQLException ex) { JOptionPane.showMessageDialog(dlg, "Database error: "+ex.getMessage()); }
         });
 
-        JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createTitledBorder("Products List"),
-            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
-        add(scrollPane, BorderLayout.CENTER);
+        cancel.addActionListener(e -> dlg.dispose());
 
-        // Initialize data and event handlers
-        loadProducts();
-        
-        btnAdd.addActionListener(e -> addProduct());
-        btnUpdate.addActionListener(e -> updateProduct());
-        btnDelete.addActionListener(e -> deleteProduct());
-        btnClear.addActionListener(e -> clearForm());
-        btnSearch.addActionListener(e -> searchProducts());
-        
-        // Add search on enter key
-        txtSearch.addActionListener(e -> searchProducts());
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.add(p, BorderLayout.CENTER);
+        wrapper.add(btns, BorderLayout.SOUTH);
+        dlg.getContentPane().add(wrapper);
+        dlg.pack();
+        dlg.setLocationRelativeTo(this);
+        dlg.setVisible(true);
     }
 
-    private void styleButton(JButton button) {
-        button.setBackground(new Color(70, 130, 180));
-        button.setForeground(Color.WHITE);
-        button.setFocusPainted(false);
-        button.setBorderPainted(false);
-        button.setFont(new Font("Arial", Font.BOLD, 12));
-        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    }
-
-    private void clearForm() {
-        txtName.setText("");
-        categoryCombo.setSelectedIndex(0);
-        txtQuantity.setText("");
-        txtPrice.setText("");
-        table.clearSelection();
-        txtSearch.setText("");
-        loadProducts(); // Reset search results
-    }
-
-    private boolean validateInputs() {
-        if (txtName.getText().trim().isEmpty()) {
-            showError("Product name is required!");
-            return false;
-        }
-
-        try {
-            int qty = Integer.parseInt(txtQuantity.getText().trim());
-            if (qty < 0) {
-                showError("Quantity must be a positive number!");
-                return false;
-            }
-        } catch (NumberFormatException e) {
-            showError("Quantity must be a valid number!");
-            return false;
-        }
-
-        try {
-            double price = Double.parseDouble(txtPrice.getText().trim());
-            if (price < 0) {
-                showError("Price must be a positive number!");
-                return false;
-            }
-        } catch (NumberFormatException e) {
-            showError("Price must be a valid number!");
-            return false;
-        }
-
-        return true;
-    }
-
-    private void showError(String message) {
-        JOptionPane.showMessageDialog(this, message, "Validation Error", JOptionPane.ERROR_MESSAGE);
-    }
-
-    private void loadProducts() {
-        try (Connection conn = DbConnection.getConnection()) {
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery("SELECT * FROM products ORDER BY name");
-            updateTableModel(rs);
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this,
-                "Error loading products: " + e.getMessage(),
-                "Database Error",
-                JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void searchProducts() {
-        String searchTerm = txtSearch.getText().trim();
-        if (searchTerm.isEmpty()) {
-            loadProducts();
-            return;
-        }
-
-        try (Connection conn = DbConnection.getConnection()) {
-            String sql = "SELECT * FROM products WHERE name LIKE ? OR category LIKE ?";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            String term = "%" + searchTerm + "%";
-            ps.setString(1, term);
-            ps.setString(2, term);
-            
-            ResultSet rs = ps.executeQuery();
-            updateTableModel(rs);
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this,
-                "Error searching products: " + e.getMessage(),
-                "Database Error",
-                JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void updateTableModel(ResultSet rs) throws SQLException {
-        model.setRowCount(0);
-        while (rs.next()) {
-            model.addRow(new Object[]{
-                rs.getInt("id"),
-                rs.getString("name"),
-                rs.getString("category"),
-                rs.getInt("quantity"),
-                rs.getDouble("price")
-            });
-        }
-    }
-
-    private void addProduct() {
-        if (!validateInputs()) return;
-
-        try (Connection conn = DbConnection.getConnection()) {
-            String sql = "INSERT INTO products (name, category, quantity, price) VALUES (?, ?, ?, ?)";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, txtName.getText().trim());
-            ps.setString(2, categoryCombo.getSelectedItem().toString());
-            ps.setInt(3, Integer.parseInt(txtQuantity.getText().trim()));
-            ps.setDouble(4, Double.parseDouble(txtPrice.getText().trim()));
-            ps.executeUpdate();
-            
-            JOptionPane.showMessageDialog(this,
-                "Product added successfully!",
-                "Success",
-                JOptionPane.INFORMATION_MESSAGE);
-            
-            clearForm();
-            loadProducts();
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this,
-                "Error adding product: " + e.getMessage(),
-                "Database Error",
-                JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void updateProduct() {
+    private void deleteProject() {
         int row = table.getSelectedRow();
-        if (row == -1) {
-            JOptionPane.showMessageDialog(this,
-                "Please select a product to update",
-                "Selection Required",
-                JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        if (!validateInputs()) return;
-
-        try (Connection conn = DbConnection.getConnection()) {
-            String sql = "UPDATE products SET name=?, category=?, quantity=?, price=? WHERE id=?";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, txtName.getText().trim());
-            ps.setString(2, categoryCombo.getSelectedItem().toString());
-            ps.setInt(3, Integer.parseInt(txtQuantity.getText().trim()));
-            ps.setDouble(4, Double.parseDouble(txtPrice.getText().trim()));
-            ps.setInt(5, (Integer) model.getValueAt(row, 0));
-            ps.executeUpdate();
-            
-            JOptionPane.showMessageDialog(this,
-                "Product updated successfully!",
-                "Success",
-                JOptionPane.INFORMATION_MESSAGE);
-            
-            clearForm();
-            loadProducts();
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this,
-                "Error updating product: " + e.getMessage(),
-                "Database Error",
-                JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void deleteProduct() {
-        int row = table.getSelectedRow();
-        if (row == -1) {
-            JOptionPane.showMessageDialog(this,
-                "Please select a product to delete",
-                "Selection Required",
-                JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        int confirm = JOptionPane.showConfirmDialog(this,
-            "Are you sure you want to delete this product?",
-            "Confirm Delete",
-            JOptionPane.YES_NO_OPTION);
-            
+        if (row == -1) { JOptionPane.showMessageDialog(this, "Select a project to delete", "Select", JOptionPane.WARNING_MESSAGE); return; }
+        int id = (Integer)model.getValueAt(row,0);
+        int confirm = JOptionPane.showConfirmDialog(this, "Delete selected project?", "Confirm", JOptionPane.YES_NO_OPTION);
         if (confirm != JOptionPane.YES_OPTION) return;
-
         try (Connection conn = DbConnection.getConnection()) {
-            String sql = "DELETE FROM products WHERE id=?";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setInt(1, (Integer) model.getValueAt(row, 0));
-            ps.executeUpdate();
-            
-            JOptionPane.showMessageDialog(this,
-                "Product deleted successfully!",
-                "Success",
-                JOptionPane.INFORMATION_MESSAGE);
-            
-            clearForm();
-            loadProducts();
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this,
-                "Error deleting product: " + e.getMessage(),
-                "Database Error",
-                JOptionPane.ERROR_MESSAGE);
-        }
+            PreparedStatement ps = conn.prepareStatement("DELETE FROM barangay_projects WHERE project_id = ?");
+            ps.setInt(1, id); ps.executeUpdate();
+            loadProjects();
+        } catch (SQLException e) { JOptionPane.showMessageDialog(this, "Error deleting: "+e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE); }
     }
+
+    private double parseDoubleSafe(String s) { try { return Double.parseDouble(s); } catch (Exception e) { return 0.0; } }
+    private int parseIntSafe(String s) { try { return Integer.parseInt(s); } catch (Exception e) { return 0; } }
 }

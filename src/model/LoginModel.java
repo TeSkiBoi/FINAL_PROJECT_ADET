@@ -3,24 +3,21 @@ package model;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.sql.*;
+import java.util.HashSet;
+import java.util.Set;
 import crypto.PasswordHashing;
 import db.DbConnection;
 
-/**
- * Added a no-arg constructor that will obtain a Connection from DbConnection.
- * This keeps the existing constructor (Connection) intact for callers that
- * want to supply their own connection, and fixes IDE errors when callers
- * construct LoginModel without a Connection.
- */
 public class LoginModel {
 
     private Connection connection;
 
-    // No-arg constructor that acquires a connection from DbConnection
     public LoginModel() {
         try {
             this.connection = DbConnection.getConnection();
+            System.out.println("[DEBUG] Database connection acquired.");
         } catch (SQLException e) {
+            System.err.println("[ERROR] Failed to acquire DB connection:");
             e.printStackTrace();
             this.connection = null;
         }
@@ -30,59 +27,267 @@ public class LoginModel {
         this.connection = connection;
     }
 
-    /**
-     * Authenticate user by username or email and password
-     */
+    // Helper: get set of column names for users table in current catalog
+    private Set<String> getUsersTableColumns() throws SQLException {
+        Set<String> cols = new HashSet<>();
+        String catalog = safeGetCatalog(connection);
+        String sql = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users'";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, catalog);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    cols.add(rs.getString(1));
+                }
+            }
+        }
+        return cols;
+    }
+
+    // Helper: return first existing candidate column name or null
+    private String firstExistingColumnName(Set<String> existingCols, String... candidates) {
+        for (String c : candidates) {
+            if (existingCols.contains(c)) return c;
+        }
+        return null;
+    }
+
     public boolean login(String usernameOrEmail, String password) {
-        String sql = "SELECT hashed_password, salt, role_id, status FROM users WHERE username = ? OR email = ?";
-        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setString(1, usernameOrEmail);
-            stmt.setString(2, usernameOrEmail);
+        System.out.println("\n=== LOGIN ATTEMPT ===");
+        System.out.println("[INPUT] Username/Email: " + usernameOrEmail);
+        System.out.println("[INPUT] Password: " + password);
 
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                String status = rs.getString("status");
-                String storedHash = rs.getString("hashed_password");
-                String storedSalt = rs.getString("salt");
+        if (connection == null) {
+            System.err.println("[ERROR] No database connection.");
+            return false;
+        }
 
-                if (!"Active".equalsIgnoreCase(status)) return false; // account inactive
+        try {
+            Set<String> cols = getUsersTableColumns();
 
-                try {
-                    // Only PBKDF2 verification
-                    return PasswordHashing.verifyPassword(password, storedSalt, storedHash);
-                } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-                    e.printStackTrace();
+            // Prefer these names in order
+            String hashedCol = firstExistingColumnName(cols, "hashed_password", "password_hash", "passwordHash", "password");
+            String saltCol = firstExistingColumnName(cols, "salt", "password_salt", "passwordSalt");
+
+            if (hashedCol == null || saltCol == null) {
+                System.err.println("[ERROR] Required password columns not found in users table. Found: " + cols);
+                return false;
+            }
+
+            String sql = "SELECT user_id, " + hashedCol + " AS hashed_password, " + saltCol + " AS salt, role_id, status, fullname, email, username FROM users WHERE username = ? OR email = ?";
+
+            System.out.println("[DEBUG] Executing SQL:");
+            System.out.println(sql);
+
+            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                stmt.setString(1, usernameOrEmail);
+                stmt.setString(2, usernameOrEmail);
+
+                ResultSet rs = stmt.executeQuery();
+
+                if (!rs.next()) {
+                    System.err.println("[ERROR] No user found for: " + usernameOrEmail);
                     return false;
                 }
-            } else {
-                return false; // user not found
+
+                // Extract values
+                String userId = rs.getString("user_id");
+                String storedHash = rs.getString("hashed_password");
+                String storedSalt = rs.getString("salt");
+                String fullname = rs.getString("fullname");
+                String email = rs.getString("email");
+                String username = rs.getString("username");
+                String status = rs.getString("status");
+                String roleId = rs.getString("role_id");
+
+                System.out.println("=== DATABASE VALUES RECEIVED ===");
+                System.out.println("User ID: " + userId);
+                System.out.println("Username: " + username);
+                System.out.println("Fullname: " + fullname);
+                System.out.println("Email: " + email);
+                System.out.println("Role ID: " + roleId);
+                System.out.println("Status: " + status);
+                System.out.println("Stored Salt: " + storedSalt);
+                System.out.println("Stored Hash: " + storedHash);
+
+                if (!"active".equalsIgnoreCase(status)) {
+                    System.err.println("[ERROR] Account is inactive.");
+                    return false;
+                }
+
+                if (storedSalt == null || storedSalt.isEmpty() || storedHash == null || storedHash.isEmpty()) {
+                    System.err.println("[ERROR] Missing hashed password or salt in DB.");
+                    return false;
+                }
+
+                System.out.println("[DEBUG] Starting PBKDF2 verification...");
+                boolean ok = PasswordHashing.verifyPassword(password, storedSalt, storedHash);
+
+                if (ok) {
+                    System.out.println("[SUCCESS] Password verified successfully!");
+
+                    // (Optional session logic)
+                    UserModel um = new UserModel();
+                    um.logUserActivity(userId, "User logged in", getLocalIpAddress());
+
+                    return true;
+                } else {
+                    System.err.println("[ERROR] Incorrect password.");
+                    return false;
+                }
+
+            } catch (SQLSyntaxErrorException se) {
+                System.err.println("[SQL ERROR] Syntax error during user lookup. Catalog: " + safeGetCatalog(connection));
+                se.printStackTrace();
+                return false;
             }
+
         } catch (SQLException e) {
+            System.err.println("[SQL ERROR] During login:");
+            e.printStackTrace();
+            return false;
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            System.err.println("[PBKDF2 ERROR] Failed to verify password:");
             e.printStackTrace();
             return false;
         }
     }
 
-    /**
-     * Get role ID of a user
-     */
     public String getRole(String usernameOrEmail) {
         String sql = "SELECT role_id FROM users WHERE username = ? OR email = ?";
+        System.out.println("[DEBUG] Checking role with SQL: " + sql);
+
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, usernameOrEmail);
             stmt.setString(2, usernameOrEmail);
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                return rs.getString("role_id");
+                String role = rs.getString("role_id");
+                System.out.println("[DEBUG] Role found: " + role);
+                return role;
             }
         } catch (SQLException e) {
+            System.err.println("[ERROR] Could not retrieve role:");
             e.printStackTrace();
         }
         return null;
     }
 
-    // Helper to check if a DB connection was successfully established
     public boolean hasConnection() {
         return this.connection != null;
+    }
+
+    private String getLocalIpAddress() {
+        return "127.0.0.1";
+    }
+
+    public boolean userNeedsPasswordReset(String usernameOrEmail) {
+        System.out.println("[DEBUG] Checking if user needs password reset: " + usernameOrEmail);
+
+        if (connection == null) return false;
+
+        try {
+            Set<String> cols = getUsersTableColumns();
+            String hashedCol = firstExistingColumnName(cols, "hashed_password", "password_hash", "passwordHash", "password");
+            String saltCol = firstExistingColumnName(cols, "salt", "password_salt", "passwordSalt");
+
+            if (hashedCol == null || saltCol == null) {
+                System.out.println("[DEBUG] Required columns not found for reset check. Columns found: " + cols);
+                return false;
+            }
+
+            String sql = "SELECT " + hashedCol + " AS hashed_password, " + saltCol + " AS salt FROM users WHERE username = ? OR email = ?";
+
+            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                stmt.setString(1, usernameOrEmail);
+                stmt.setString(2, usernameOrEmail);
+
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    String h = rs.getString("hashed_password");
+                    String s = rs.getString("salt");
+
+                    System.out.println("[DEBUG] Existing hash: " + h);
+                    System.out.println("[DEBUG] Existing salt: " + s);
+
+                    return (h == null || h.isEmpty() || s == null || s.isEmpty());
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    public boolean setUserPassword(String usernameOrEmail, String newPassword)
+            throws NoSuchAlgorithmException, InvalidKeySpecException {
+
+        System.out.println("[DEBUG] Setting new PBKDF2 password for: " + usernameOrEmail);
+
+        if (connection == null) return false;
+
+        try {
+            Set<String> cols = getUsersTableColumns();
+            String hashedCol = firstExistingColumnName(cols, "hashed_password", "password_hash", "passwordHash", "password");
+            String saltCol = firstExistingColumnName(cols, "salt", "password_salt", "passwordSalt");
+
+            if (hashedCol == null || saltCol == null) {
+                System.err.println("[ERROR] Required password columns not found for update. Columns found: " + cols);
+                return false;
+            }
+
+            String sqlSelect = "SELECT user_id FROM users WHERE username = ? OR email = ?";
+
+            try (PreparedStatement ps = connection.prepareStatement(sqlSelect)) {
+                ps.setString(1, usernameOrEmail);
+                ps.setString(2, usernameOrEmail);
+
+                ResultSet rs = ps.executeQuery();
+
+                if (rs.next()) {
+                    String userId = rs.getString("user_id");
+                    String salt = PasswordHashing.generateSalt();
+                    String hash = PasswordHashing.hashPassword(newPassword, salt);
+
+                    System.out.println("[DEBUG] Generated Salt: " + salt);
+                    System.out.println("[DEBUG] Generated Hash: " + hash);
+
+                    // Build update to set whichever columns exist (set both if both exist)
+                    StringBuilder updateSql = new StringBuilder("UPDATE users SET ");
+                    boolean first = true;
+                    if (cols.contains("hashed_password") || cols.contains("password_hash") || cols.contains("passwordHash") || cols.contains("password")) {
+                        updateSql.append(hashedCol + " = ?");
+                        first = false;
+                    }
+                    if (!first) updateSql.append(", ");
+                    updateSql.append(saltCol + " = ? WHERE user_id = ?");
+
+                    try (PreparedStatement pu = connection.prepareStatement(updateSql.toString())) {
+                        pu.setString(1, hash);
+                        pu.setString(2, salt);
+                        pu.setString(3, userId);
+
+                        boolean updated = pu.executeUpdate() > 0;
+
+                        System.out.println("[DEBUG] Update status: " + updated);
+                        return updated;
+                    }
+                } else {
+                    System.err.println("[ERROR] User not found.");
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[ERROR] Failed to update password:");
+            e.printStackTrace();
+        }
+
+        return false;
+    }
+
+    private String safeGetCatalog(Connection conn) {
+        try {
+            return conn.getCatalog();
+        } catch (SQLException e) {
+            return "<unknown>";
+        }
     }
 }
