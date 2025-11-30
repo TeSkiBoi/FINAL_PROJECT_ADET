@@ -42,17 +42,52 @@ public class UserModel {
     }
 
     public boolean logUserActivity(String userId, String action, String ipAddress) {
-        if (conn == null) return false;
+        if (conn == null) {
+            util.Logger.logError("Log user activity", "Database connection is null", null);
+            return false;
+        }
+        
         String sql = "INSERT INTO user_logs (user_id, action, ip_address) VALUES (?, ?, ?)";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, userId);
             stmt.setString(2, action);
             stmt.setString(3, ipAddress);
-            return stmt.executeUpdate() > 0;
+            boolean success = stmt.executeUpdate() > 0;
+            
+            if (success) {
+                // Also log to user.log file
+                try {
+                    // Get username for better logging
+                    String username = getUsernameById(userId);
+                    util.Logger.logUserActivity(username != null ? username : userId, action, "IP: " + ipAddress);
+                } catch (Exception e) {
+                    // Don't fail the database insert if file logging fails
+                    System.err.println("Failed to write to user.log: " + e.getMessage());
+                }
+            }
+            
+            return success;
         } catch (SQLException e) {
+            util.Logger.logDatabaseError(sql, e);
             e.printStackTrace();
             return false;
         }
+    }
+    
+    /**
+     * Get username by user ID
+     */
+    private String getUsernameById(String userId) {
+        if (conn == null) return null;
+        String sql = "SELECT username FROM users WHERE user_id = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, userId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) return rs.getString("username");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     public String getRoleName(String roleId) {

@@ -187,6 +187,9 @@ public class Login extends JFrame {
             User currentUser = new UserModel().getUserByUsernameOrEmail(usernameOrEmail);
             SessionManager.getInstance().setCurrentUser(currentUser);
 
+            // Log successful login
+            util.Logger.logAuthenticationAttempt(currentUser.getUsername(), true, "127.0.0.1");
+            
             JOptionPane.showMessageDialog(this,
                     "Login successful! Welcome " + currentUser.getFullname(), 
                     "Success", 
@@ -197,23 +200,31 @@ public class Login extends JFrame {
             
             if ("1".equals(roleId)) {
                 // Admin - Full access to Dashboard
+                util.Logger.logInfo("Admin user " + currentUser.getUsername() + " accessed full dashboard");
                 new Dashboard().setVisible(true);
             } else if ("2".equals(roleId)) {
                 // Staff - Limited access to Dashboard
                 // The Dashboard already checks role and shows limited menu
+                util.Logger.logInfo("Staff user " + currentUser.getUsername() + " accessed limited dashboard");
                 new Dashboard().setVisible(true);
             } else {
                 // Other roles - ClientDashboard (if exists) or default Dashboard
                 try {
+                    util.Logger.logInfo("User " + currentUser.getUsername() + " accessed client dashboard");
                     new ClientDashboard().setVisible(true);
                 } catch (Exception ex) {
                     // If ClientDashboard doesn't work, use regular Dashboard
+                    util.Logger.logWarning("ClientDashboard not available, using default Dashboard for " + currentUser.getUsername());
                     new Dashboard().setVisible(true);
                 }
             }
 
             dispose(); // close login window
         } else {
+            // Log failed login attempt
+            util.Logger.logAuthenticationAttempt(usernameOrEmail, false, "127.0.0.1");
+            util.Logger.logWarning("Failed login attempt for username/email: " + usernameOrEmail);
+            
             JOptionPane.showMessageDialog(this,
                     "Invalid username or password!", "Login Error", JOptionPane.ERROR_MESSAGE);
             passwordField.setText("");

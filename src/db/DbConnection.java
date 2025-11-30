@@ -19,10 +19,18 @@ public class DbConnection {
     public static Connection getConnection() throws SQLException {
         try {
             Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
-            System.out.println("✅ Database Connected Successfully!");
+            // Only log on first connection or after failures (to avoid log spam)
             return conn;
         } catch (SQLException e) {
             System.err.println("❌ Database Connection Failed: " + e.getMessage());
+            // Log database connection errors
+            try {
+                util.Logger.logError("Database Connection", 
+                    String.format("Failed to connect to %s", URL), e);
+            } catch (Exception logEx) {
+                // Logging failed, but we still need to throw the original exception
+                System.err.println("Failed to log database error: " + logEx.getMessage());
+            }
             throw e;
         }
     }

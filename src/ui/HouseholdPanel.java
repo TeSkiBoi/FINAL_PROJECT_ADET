@@ -154,6 +154,7 @@ public class HouseholdPanel extends JPanel {
                 });
             }
         } catch (SQLException e) {
+            util.Logger.logError("Load households", "Failed to load households from database", e);
             JOptionPane.showMessageDialog(this, "Error loading households: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
         }
     }
@@ -204,11 +205,20 @@ public class HouseholdPanel extends JPanel {
             try (Connection conn = DbConnection.getConnection()) {
                 if (!isEdit) {
                     String sql = "INSERT INTO households (family_no, address, income) VALUES (?, ?, ?)";
-                    PreparedStatement ps = conn.prepareStatement(sql);
+                    PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
                     ps.setInt(1, Integer.parseInt(txtFamilyNo.getText().trim()));
                     ps.setString(2, txtAddress.getText().trim());
                     ps.setDouble(3, Double.parseDouble(txtIncome.getText().trim()));
                     ps.executeUpdate();
+                    
+                    ResultSet rs = ps.getGeneratedKeys();
+                    String newId = rs.next() ? String.valueOf(rs.getInt(1)) : "unknown";
+                    
+                    // Log user activity
+                    util.Logger.logCRUDOperation("CREATE", "Household", newId, 
+                        String.format("Family No: %s, Address: %s", 
+                            txtFamilyNo.getText().trim(), txtAddress.getText().trim()));
+                    
                     JOptionPane.showMessageDialog(dialog, "Household added successfully. Please add members to this household.");
                 } else {
                     String sql = "UPDATE households SET family_no=?, address=?, income=? WHERE household_id=?";
@@ -218,11 +228,24 @@ public class HouseholdPanel extends JPanel {
                     ps.setDouble(3, Double.parseDouble(txtIncome.getText().trim()));
                     ps.setInt(4, id);
                     ps.executeUpdate();
+                    
+                    // Log user activity
+                    util.Logger.logCRUDOperation("UPDATE", "Household", String.valueOf(id),
+                        String.format("Family No: %s, Address: %s", 
+                            txtFamilyNo.getText().trim(), txtAddress.getText().trim()));
+                    
                     JOptionPane.showMessageDialog(dialog, "Household updated successfully");
                 }
                 dialog.dispose();
                 loadHouseholds();
+            } catch (NumberFormatException e) {
+                util.Logger.logError("Household save", "Invalid number format", e);
+                JOptionPane.showMessageDialog(dialog, "Error: Please enter valid numbers for Family No and Income");
+            } catch (SQLException e) {
+                util.Logger.logError("Household save", "Database error while saving household", e);
+                JOptionPane.showMessageDialog(dialog, "Database Error: " + e.getMessage());
             } catch (Exception e) {
+                util.Logger.logError("Household save", "Unexpected error", e);
                 JOptionPane.showMessageDialog(dialog, "Error: " + e.getMessage());
             }
         });
@@ -462,22 +485,34 @@ public class HouseholdPanel extends JPanel {
             return;
         }
         int id = (Integer) table.getValueAt(row, 0);
-        int confirm = JOptionPane.showConfirmDialog(this, "Delete household and all its members?", "Confirm", JOptionPane.YES_NO_OPTION);
+        String familyNo = String.valueOf(table.getValueAt(row, 1));
+        
+        int confirm = JOptionPane.showConfirmDialog(this, 
+            "Delete household and all its members?", 
+            "Confirm", 
+            JOptionPane.YES_NO_OPTION);
+            
         if (confirm == JOptionPane.YES_OPTION) {
             try (Connection conn = DbConnection.getConnection()) {
                 // Delete members first
                 PreparedStatement ps = conn.prepareStatement("DELETE FROM residents WHERE household_id = ?");
                 ps.setInt(1, id);
-                ps.executeUpdate();
+                int membersDeleted = ps.executeUpdate();
                 
                 // Delete household
                 ps = conn.prepareStatement("DELETE FROM households WHERE household_id = ?");
                 ps.setInt(1, id);
                 ps.executeUpdate();
                 
+                // Log user activity
+                util.Logger.logCRUDOperation("DELETE", "Household", String.valueOf(id),
+                    String.format("Family No: %s, Members deleted: %d", familyNo, membersDeleted));
+                
                 JOptionPane.showMessageDialog(this, "Household deleted");
                 loadHouseholds();
             } catch (SQLException e) {
+                util.Logger.logError("Delete household", 
+                    String.format("Failed to delete household ID: %d", id), e);
                 JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
             }
         }
