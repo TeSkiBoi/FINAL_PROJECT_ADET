@@ -4,10 +4,11 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
-import java.sql.*;
-import db.DbConnection;
+import java.util.List;
+import model.ChildrenModel;
 import model.SessionManager;
 import model.User;
+import theme.Theme;
 
 public class ChildrenPanel extends JPanel {
     private JTable table;
@@ -26,6 +27,12 @@ public class ChildrenPanel extends JPanel {
         if (current != null && "2".equals(current.getRoleId())) {
             isStaff = true;
         }
+
+        // Panel title
+        JLabel titleLabel = new JLabel("👶 Children (Under 18 years)");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        titleLabel.setForeground(Theme.PRIMARY);
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
 
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.setBackground(Theme.PRIMARY_LIGHT);
@@ -46,9 +53,15 @@ public class ChildrenPanel extends JPanel {
         lblNote.setFont(new Font("Arial", Font.ITALIC, 11));
         top.add(lblNote);
         
-        add(top, BorderLayout.NORTH);
+        // Combine title and toolbar
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
+        headerPanel.add(titleLabel, BorderLayout.NORTH);
+        headerPanel.add(top, BorderLayout.CENTER);
+        
+        add(headerPanel, BorderLayout.NORTH);
 
-        model = new DefaultTableModel(new String[]{"ID", "Name", "Age", "Household", "Guardian"}, 0) {
+        model = new DefaultTableModel(new String[]{"ID", "Name", "Age", "Guardian"}, 0) {
             @Override
             public boolean isCellEditable(int r, int c) {
                 return false;
@@ -89,26 +102,27 @@ public class ChildrenPanel extends JPanel {
 
     private void loadChildren() {
         model.setRowCount(0);
-        try (Connection conn = DbConnection.getConnection()) {
-            String sql = "SELECT r.resident_id, CONCAT(r.first_name, ' ', r.last_name) as name, r.age, r.household_id, " +
-                        "(SELECT CONCAT(h.first_name, ' ', h.last_name) FROM residents h WHERE h.household_id = r.household_id AND h.age >= 18 LIMIT 1) as guardian " +
-                        "FROM residents r WHERE r.age < 18 ORDER BY r.age";
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery(sql);
-            while (rs.next()) {
-                int hId = rs.getInt("household_id");
-                String householdDisplay = rs.wasNull() ? "N/A" : String.valueOf(hId);
-                model.addRow(new Object[]{
-                    rs.getInt("resident_id"),
-                    rs.getString("name"),
-                    rs.getInt("age"),
-                    householdDisplay,
-                    rs.getString("guardian")
-                });
+        
+        try {
+            List<ChildrenModel.Child> children = ChildrenModel.getAllChildren();
+            
+            if (children.isEmpty()) {
+                model.addRow(new Object[]{"", "No children found", "Add residents through Households", ""});
+            } else {
+                for (ChildrenModel.Child child : children) {
+                    model.addRow(new Object[]{
+                        child.getResidentId(),
+                        child.getName(),
+                        child.getAge(),
+                        child.getGuardian()
+                    });
+                }
             }
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Error loading children: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, 
+                "Error loading children: " + e.getMessage(), 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
         }
     }
-
 }

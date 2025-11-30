@@ -11,6 +11,7 @@ import java.awt.*;
 import java.sql.*;
 import java.util.List;
 import db.DbConnection;
+import theme.Theme;
 
 public class HouseholdPanel extends JPanel {
     private JTable table;
@@ -29,6 +30,12 @@ public class HouseholdPanel extends JPanel {
         if (current != null && "2".equals(current.getRoleId())) {
             isStaff = true;
         }
+
+        // Panel title
+        JLabel titleLabel = new JLabel("🏠 Household Management");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        titleLabel.setForeground(Theme.PRIMARY);
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
 
         // Top toolbar
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -66,7 +73,12 @@ public class HouseholdPanel extends JPanel {
             btnManageMembers.setEnabled(false);
         }
 
-        add(top, BorderLayout.NORTH);
+        // Combine title and toolbar
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
+        headerPanel.add(titleLabel, BorderLayout.NORTH);
+        headerPanel.add(top, BorderLayout.CENTER);
+        add(headerPanel, BorderLayout.NORTH);
 
         // Table
         tableModel = new DefaultTableModel(
@@ -143,19 +155,32 @@ public class HouseholdPanel extends JPanel {
                         "ORDER BY h.household_id";
             Statement st = conn.createStatement();
             ResultSet rs = st.executeQuery(sql);
+            boolean hasData = false;
             while (rs.next()) {
+                hasData = true;
+                String headName = rs.getString("head_name");
+                
+                // Show placeholder if no head assigned yet
+                if (headName == null || headName.trim().isEmpty()) {
+                    headName = "Not assigned yet";
+                } else {
+                    headName = headName.trim();
+                }
+                
                 tableModel.addRow(new Object[]{
                     rs.getInt("household_id"),
                     rs.getInt("family_no"),
-                    rs.getString("head_name") != null ? rs.getString("head_name").trim() : "",
+                    headName,
                     rs.getString("address"),
                     rs.getDouble("income"),
                     rs.getInt("member_count")
                 });
             }
+            if (!hasData) {
+                tableModel.addRow(new Object[]{"", "", "No households found", "Click 'Add Household' to create a new household", "", ""});
+            }
         } catch (SQLException e) {
-            util.Logger.logError("Load households", "Failed to load households from database", e);
-            JOptionPane.showMessageDialog(this, "Error loading households: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
+            util.ErrorHandler.showError(this, "loading households", e);
         }
     }
 
@@ -189,7 +214,7 @@ public class HouseholdPanel extends JPanel {
                     txtIncome.setText(String.valueOf(rs.getDouble("income")));
                 }
             } catch (SQLException e) {
-                JOptionPane.showMessageDialog(this, "Error loading household: " + e.getMessage());
+                util.ErrorHandler.showError(this, "loading household details", e);
             }
         }
 
@@ -202,51 +227,106 @@ public class HouseholdPanel extends JPanel {
         btnPanel.add(btnCancel);
 
         btnSave.addActionListener(ae -> {
-            try (Connection conn = DbConnection.getConnection()) {
-                if (!isEdit) {
-                    String sql = "INSERT INTO households (family_no, address, income) VALUES (?, ?, ?)";
-                    PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-                    ps.setInt(1, Integer.parseInt(txtFamilyNo.getText().trim()));
-                    ps.setString(2, txtAddress.getText().trim());
-                    ps.setDouble(3, Double.parseDouble(txtIncome.getText().trim()));
-                    ps.executeUpdate();
-                    
-                    ResultSet rs = ps.getGeneratedKeys();
-                    String newId = rs.next() ? String.valueOf(rs.getInt(1)) : "unknown";
-                    
-                    // Log user activity
-                    util.Logger.logCRUDOperation("CREATE", "Household", newId, 
-                        String.format("Family No: %s, Address: %s", 
-                            txtFamilyNo.getText().trim(), txtAddress.getText().trim()));
-                    
-                    JOptionPane.showMessageDialog(dialog, "Household added successfully. Please add members to this household.");
-                } else {
-                    String sql = "UPDATE households SET family_no=?, address=?, income=? WHERE household_id=?";
-                    PreparedStatement ps = conn.prepareStatement(sql);
-                    ps.setInt(1, Integer.parseInt(txtFamilyNo.getText().trim()));
-                    ps.setString(2, txtAddress.getText().trim());
-                    ps.setDouble(3, Double.parseDouble(txtIncome.getText().trim()));
-                    ps.setInt(4, id);
-                    ps.executeUpdate();
-                    
-                    // Log user activity
-                    util.Logger.logCRUDOperation("UPDATE", "Household", String.valueOf(id),
-                        String.format("Family No: %s, Address: %s", 
-                            txtFamilyNo.getText().trim(), txtAddress.getText().trim()));
-                    
-                    JOptionPane.showMessageDialog(dialog, "Household updated successfully");
+            try {
+                // Validate all required fields
+                String familyNoStr = txtFamilyNo.getText().trim();
+                String address = txtAddress.getText().trim();
+                String incomeStr = txtIncome.getText().trim();
+                
+                // Check if required fields are empty
+                if (familyNoStr.isEmpty()) {
+                    util.ErrorHandler.showValidationError(dialog, "Family No");
+                    txtFamilyNo.requestFocus();
+                    return;
                 }
-                dialog.dispose();
-                loadHouseholds();
-            } catch (NumberFormatException e) {
-                util.Logger.logError("Household save", "Invalid number format", e);
-                JOptionPane.showMessageDialog(dialog, "Error: Please enter valid numbers for Family No and Income");
-            } catch (SQLException e) {
-                util.Logger.logError("Household save", "Database error while saving household", e);
-                JOptionPane.showMessageDialog(dialog, "Database Error: " + e.getMessage());
+                
+                if (address.isEmpty()) {
+                    util.ErrorHandler.showValidationError(dialog, "Address");
+                    txtAddress.requestFocus();
+                    return;
+                }
+                
+                if (incomeStr.isEmpty()) {
+                    util.ErrorHandler.showValidationError(dialog, "Income");
+                    txtIncome.requestFocus();
+                    return;
+                }
+                
+                // Validate data types
+                int familyNo;
+                double income;
+                
+                try {
+                    familyNo = Integer.parseInt(familyNoStr);
+                    if (familyNo <= 0) {
+                        util.ErrorHandler.showError(dialog, "Family No must be a positive number.");
+                        txtFamilyNo.requestFocus();
+                        return;
+                    }
+                } catch (NumberFormatException e) {
+                    util.Logger.logError("Household validation", "Invalid Family No format: " + familyNoStr, e);
+                    util.ErrorHandler.showFormatError(dialog, "Family No", "positive integer (e.g., 1, 100)");
+                    txtFamilyNo.requestFocus();
+                    return;
+                }
+                
+                try {
+                    income = Double.parseDouble(incomeStr);
+                    if (income < 0) {
+                        util.ErrorHandler.showError(dialog, "Income cannot be negative.");
+                        txtIncome.requestFocus();
+                        return;
+                    }
+                } catch (NumberFormatException e) {
+                    util.Logger.logError("Household validation", "Invalid Income format: " + incomeStr, e);
+                    util.ErrorHandler.showFormatError(dialog, "Income", "number (e.g., 15000, 25000.50)");
+                    txtIncome.requestFocus();
+                    return;
+                }
+                
+                // All validation passed, proceed with save
+                try (Connection conn = DbConnection.getConnection()) {
+                    if (!isEdit) {
+                        String sql = "INSERT INTO households (family_no, address, income) VALUES (?, ?, ?)";
+                        PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+                        ps.setInt(1, familyNo);
+                        ps.setString(2, address);
+                        ps.setDouble(3, income);
+                        ps.executeUpdate();
+                        
+                        ResultSet rs = ps.getGeneratedKeys();
+                        String newId = rs.next() ? String.valueOf(rs.getInt(1)) : "unknown";
+                        
+                        // Log user activity
+                        util.Logger.logCRUDOperation("CREATE", "Household", newId, 
+                            String.format("Family No: %d, Address: %s", familyNo, address));
+                        
+                        util.ErrorHandler.showSuccess(dialog, 
+                            "Household added successfully!\n\n" +
+                            "Next step: Click 'Manage Members' to add household members.\n" +
+                            "The first member added will be the household head.");
+                    } else {
+                        String sql = "UPDATE households SET family_no=?, address=?, income=? WHERE household_id=?";
+                        PreparedStatement ps = conn.prepareStatement(sql);
+                        ps.setInt(1, familyNo);
+                        ps.setString(2, address);
+                        ps.setDouble(3, income);
+                        ps.setInt(4, id);
+                        ps.executeUpdate();
+                        
+                        // Log user activity
+                        util.Logger.logCRUDOperation("UPDATE", "Household", String.valueOf(id),
+                            String.format("Family No: %d, Address: %s", familyNo, address));
+                        
+                        util.ErrorHandler.showSuccess(dialog, "Household updated successfully!");
+                    }
+                    dialog.dispose();
+                    loadHouseholds();
+                } catch (SQLException e) {
+                    util.ErrorHandler.showError(dialog, "saving household", e);
+                }
             } catch (Exception e) {
-                util.Logger.logError("Household save", "Unexpected error", e);
-                JOptionPane.showMessageDialog(dialog, "Error: " + e.getMessage());
+                util.ErrorHandler.showError(dialog, "saving household", e);
             }
         });
 
@@ -360,12 +440,46 @@ public class HouseholdPanel extends JPanel {
         JTextField txtFirst = new JTextField();
         JTextField txtMiddle = new JTextField();
         JTextField txtLast = new JTextField();
-        JTextField txtBirth = new JTextField("YYYY-MM-DD");
+        JComboBox<String> cboSuffix = new JComboBox<>(new String[]{"", "Jr.", "Sr.", "II", "III", "IV", "V"});
+        cboSuffix.setEditable(true);
+        
+        // Create date spinner for birthdate
+        SpinnerDateModel dateModel = new SpinnerDateModel();
+        JSpinner spinBirth = new JSpinner(dateModel);
+        JSpinner.DateEditor dateEditor = new JSpinner.DateEditor(spinBirth, "yyyy-MM-dd");
+        spinBirth.setEditor(dateEditor);
+        
+        // Set default date to 25 years ago for convenience
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.add(java.util.Calendar.YEAR, -25);
+        spinBirth.setValue(cal.getTime());
+        
         JTextField txtAge = new JTextField();
+        txtAge.setEditable(false);
+        txtAge.setBackground(Color.LIGHT_GRAY);
+        txtAge.setToolTipText("Age is automatically calculated from birthdate");
         JComboBox<String> cboGender = new JComboBox<>(new String[]{"Male", "Female", "Other"});
         JTextField txtContact = new JTextField();
         JTextField txtEmail = new JTextField();
         JCheckBox chkIsHead = new JCheckBox("Set as Household Head");
+        
+        // Add listener to birthdate spinner to auto-calculate age
+        spinBirth.addChangeListener(e -> {
+            try {
+                java.util.Date dateValue = (java.util.Date) spinBirth.getValue();
+                Date birthDate = new Date(dateValue.getTime());
+                int age = ResidentModel.calculateAge(birthDate);
+                txtAge.setText(String.valueOf(age));
+            } catch (Exception ex) {
+                txtAge.setText("");
+            }
+        });
+        
+        // Trigger initial age calculation
+        java.util.Date initialDate = (java.util.Date) spinBirth.getValue();
+        Date initialBirthDate = new Date(initialDate.getTime());
+        int initialAge = ResidentModel.calculateAge(initialBirthDate);
+        txtAge.setText(String.valueOf(initialAge));
 
         panel.add(new JLabel("First Name:*"));
         panel.add(txtFirst);
@@ -373,9 +487,11 @@ public class HouseholdPanel extends JPanel {
         panel.add(txtMiddle);
         panel.add(new JLabel("Last Name:*"));
         panel.add(txtLast);
+        panel.add(new JLabel("Suffix:"));
+        panel.add(cboSuffix);
         panel.add(new JLabel("Birthdate:*"));
-        panel.add(txtBirth);
-        panel.add(new JLabel("Age:*"));
+        panel.add(spinBirth);
+        panel.add(new JLabel("Age (Auto):*"));
         panel.add(txtAge);
         panel.add(new JLabel("Gender:*"));
         panel.add(cboGender);
@@ -407,8 +523,21 @@ public class HouseholdPanel extends JPanel {
                     txtFirst.setText(r.getFirstName());
                     txtMiddle.setText(r.getMiddleName());
                     txtLast.setText(r.getLastName());
-                    txtBirth.setText(r.getBirthDate() != null ? r.getBirthDate().toString() : "");
-                    txtAge.setText(String.valueOf(r.getAge()));
+                    
+                    // Set suffix
+                    if (r.getSuffix() != null && !r.getSuffix().isEmpty()) {
+                        cboSuffix.setSelectedItem(r.getSuffix());
+                    }
+                    
+                    // Set spinner value for birthdate
+                    if (r.getBirthDate() != null) {
+                        spinBirth.setValue(new java.util.Date(r.getBirthDate().getTime()));
+                        int age = ResidentModel.calculateAge(r.getBirthDate());
+                        txtAge.setText(String.valueOf(age));
+                    } else {
+                        txtAge.setText(String.valueOf(r.getAge()));
+                    }
+                    
                     cboGender.setSelectedItem(r.getGender());
                     txtContact.setText(r.getContactNo());
                     txtEmail.setText(r.getEmail());
@@ -428,6 +557,54 @@ public class HouseholdPanel extends JPanel {
         final boolean finalIsFirstMember = isFirstMember;
         btnSave.addActionListener(ae -> {
             try {
+                // Validate all required fields
+                String firstName = txtFirst.getText().trim();
+                String middleName = txtMiddle.getText().trim();
+                String lastName = txtLast.getText().trim();
+                String contact = txtContact.getText().trim();
+                String email = txtEmail.getText().trim();
+                
+                // Check required fields
+                if (firstName.isEmpty()) {
+                    util.ErrorHandler.showValidationError(dialog, "First Name");
+                    txtFirst.requestFocus();
+                    return;
+                }
+                
+                if (lastName.isEmpty()) {
+                    util.ErrorHandler.showValidationError(dialog, "Last Name");
+                    txtLast.requestFocus();
+                    return;
+                }
+                
+                // Validate birthdate
+                java.util.Date spinnerDate = (java.util.Date) spinBirth.getValue();
+                if (spinnerDate == null) {
+                    util.ErrorHandler.showValidationError(dialog, "Birthdate");
+                    return;
+                }
+                
+                // Check if birthdate is in the future
+                if (spinnerDate.after(new java.util.Date())) {
+                    util.ErrorHandler.showError(dialog, "Birthdate cannot be in the future.\nPlease select a valid date.");
+                    return;
+                }
+                
+                // Validate gender selection
+                String gender = (String) cboGender.getSelectedItem();
+                if (gender == null || gender.isEmpty()) {
+                    util.ErrorHandler.showValidationError(dialog, "Gender");
+                    return;
+                }
+                
+                // Email validation (if provided)
+                if (!email.isEmpty() && !email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
+                    util.ErrorHandler.showFormatError(dialog, "Email", "valid email (e.g., user@example.com)");
+                    txtEmail.requestFocus();
+                    return;
+                }
+                
+                // All validation passed, proceed with save
                 ResidentModel r = isEdit ? null : new ResidentModel();
                 if (isEdit) {
                     for (ResidentModel rm : ResidentModel.getAll()) {
@@ -438,32 +615,44 @@ public class HouseholdPanel extends JPanel {
                     }
                 }
                 if (r == null && isEdit) {
-                    JOptionPane.showMessageDialog(dialog, "Member not found");
+                    util.ErrorHandler.showError(dialog, "Member not found in database.");
                     return;
                 }
 
                 r.setHouseholdId(householdId);
-                r.setFirstName(txtFirst.getText().trim());
-                r.setMiddleName(txtMiddle.getText().trim());
-                r.setLastName(txtLast.getText().trim());
-                r.setBirthDate(Date.valueOf(txtBirth.getText().trim()));
-                r.setAge(Integer.parseInt(txtAge.getText().trim()));
-                r.setGender((String) cboGender.getSelectedItem());
-                r.setContactNo(txtContact.getText().trim());
-                r.setEmail(txtEmail.getText().trim());
+                r.setFirstName(firstName);
+                r.setMiddleName(middleName);
+                r.setLastName(lastName);
+                
+                // Get suffix from combobox
+                String suffix = (String) cboSuffix.getSelectedItem();
+                r.setSuffix(suffix != null && !suffix.trim().isEmpty() ? suffix.trim() : null);
+                
+                r.setBirthDate(new Date(spinnerDate.getTime()));
+                r.setGender(gender);
+                r.setContactNo(contact);
+                r.setEmail(email);
 
                 boolean success = isEdit ? r.update() : r.create();
                 if (success) {
-                    // No need to update households table - head name is now retrieved via JOIN from residents
-                    JOptionPane.showMessageDialog(dialog, isEdit ? "Member updated" : "Member added");
+                    // Log the operation
+                    util.Logger.logCRUDOperation(
+                        isEdit ? "UPDATE" : "CREATE", 
+                        "Resident", 
+                        String.valueOf(r.getResidentId()),
+                        String.format("Name: %s %s, Household: %d", firstName, lastName, householdId)
+                    );
+                    
+                    util.ErrorHandler.showSuccess(dialog, 
+                        isEdit ? "Member updated successfully!" : "Member added successfully!");
                     dialog.dispose();
                     refreshCallback.run();
                     loadHouseholds();
                 } else {
-                    JOptionPane.showMessageDialog(dialog, "Failed to save member");
+                    util.ErrorHandler.showError(dialog, "Failed to save member to database.\nPlease try again.");
                 }
             } catch (Exception ex) {
-                JOptionPane.showMessageDialog(dialog, "Error: " + ex.getMessage());
+                util.ErrorHandler.showError(dialog, "saving member information", ex);
             }
         });
 
@@ -511,9 +700,7 @@ public class HouseholdPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Household deleted");
                 loadHouseholds();
             } catch (SQLException e) {
-                util.Logger.logError("Delete household", 
-                    String.format("Failed to delete household ID: %d", id), e);
-                JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
+                util.ErrorHandler.showError(this, "deleting household", e);
             }
         }
     }

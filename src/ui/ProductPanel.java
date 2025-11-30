@@ -9,6 +9,7 @@ import model.SessionManager;
 import model.User;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import theme.Theme;
 
 /**
  * Projects panel adapted from ProductPanel: manages barangay_projects table.

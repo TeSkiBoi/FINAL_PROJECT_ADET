@@ -7,6 +7,7 @@ import java.awt.*;
 import java.sql.*;
 import db.DbConnection;
 import util.DateTimeFormatter;
+import theme.Theme;
 
 public class ActivityLogPanel extends JPanel {
     private JTable table;
@@ -18,6 +19,12 @@ public class ActivityLogPanel extends JPanel {
     public ActivityLogPanel() {
         setLayout(new BorderLayout(10, 10));
         setBackground(Theme.PRIMARY_LIGHT);
+        
+        // Panel title
+        JLabel titleLabel = new JLabel("📋 Activity Log");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        titleLabel.setForeground(Theme.PRIMARY);
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
         
         // Top panel with controls
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -38,7 +45,13 @@ public class ActivityLogPanel extends JPanel {
         topPanel.add(btnRefresh);
         topPanel.add(btnClear);
         
-        add(topPanel, BorderLayout.NORTH);
+        // Combine title and toolbar
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
+        headerPanel.add(titleLabel, BorderLayout.NORTH);
+        headerPanel.add(topPanel, BorderLayout.CENTER);
+        
+        add(headerPanel, BorderLayout.NORTH);
         
         // Table with username column
         model = new DefaultTableModel(
@@ -105,7 +118,9 @@ public class ActivityLogPanel extends JPanel {
             Statement st = conn.createStatement();
             ResultSet rs = st.executeQuery(sql);
             
+            boolean hasData = false;
             while (rs.next()) {
+                hasData = true;
                 String username = rs.getString("username");
                 if (username == null || username.isEmpty()) {
                     username = "Unknown";
@@ -122,6 +137,10 @@ public class ActivityLogPanel extends JPanel {
                     formattedTime,
                     rs.getString("ip_address")
                 });
+            }
+            
+            if (!hasData) {
+                model.addRow(new Object[]{"", "No activity logs found", "", "User actions will appear here", "", ""});
             }
         } catch (SQLException e) {
             util.Logger.logError("Loading activity logs", "Failed to load activity logs from database", e);

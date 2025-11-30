@@ -2,41 +2,81 @@ package ui;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.*;
 import crypto.PasswordHashing;
 import db.DbConnection;
 import java.security.NoSuchAlgorithmException;
+import theme.Theme;
 import java.security.spec.InvalidKeySpecException;
 
 public class UsersPanel extends JPanel {
     private JTable table;
     private DefaultTableModel model;
     private JButton btnAdd, btnEdit, btnDelete, btnRefresh;
+    private JTextField txtSearch;
+    private TableRowSorter<DefaultTableModel> sorter;
 
     public UsersPanel() {
         setLayout(new BorderLayout(10,10));
+        
+        // Panel title
+        JLabel titleLabel = new JLabel("👤 User Management");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        titleLabel.setForeground(Theme.PRIMARY);
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.setBackground(Theme.PRIMARY_LIGHT);
-        btnAdd = new JButton("Add User");
-        btnEdit = new JButton("Edit User");
-        btnDelete = new JButton("Delete User");
-        btnRefresh = new JButton("Refresh");
+        
+        JLabel lblSearch = new JLabel("Search:");
+        txtSearch = new JTextField(30);
+        btnAdd = new JButton("+ Add User");
+        btnEdit = new JButton("✏ Edit User");
+        btnDelete = new JButton("🗑 Delete User");
+        btnRefresh = new JButton("🔄 Refresh");
         style(btnAdd); style(btnEdit); style(btnDelete); style(btnRefresh);
+        
+        top.add(lblSearch);
+        top.add(txtSearch);
         top.add(btnRefresh); top.add(btnAdd); top.add(btnEdit); top.add(btnDelete);
-        add(top, BorderLayout.NORTH);
+        
+        // Combine title and toolbar
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
+        headerPanel.add(titleLabel, BorderLayout.NORTH);
+        headerPanel.add(top, BorderLayout.CENTER);
+        add(headerPanel, BorderLayout.NORTH);
 
         model = new DefaultTableModel(new String[]{"User ID","Username","Fullname","Email","Role","Status"}, 0){ @Override public boolean isCellEditable(int r,int c){return false;} };
         table = new JTable(model);
+        sorter = new TableRowSorter<>(model);
+        table.setRowSorter(sorter);
         add(new JScrollPane(table), BorderLayout.CENTER);
 
         btnRefresh.addActionListener(e -> loadUsers());
         btnAdd.addActionListener(e -> openUserDialog(null));
-        btnEdit.addActionListener(e -> { int r = table.getSelectedRow(); if (r==-1){ JOptionPane.showMessageDialog(this,"Select a user"); return;} openUserDialog((String)model.getValueAt(r,0)); });
+        btnEdit.addActionListener(e -> { int r = table.getSelectedRow(); if (r==-1){ JOptionPane.showMessageDialog(this,"Select a user"); return;} openUserDialog((String)table.getValueAt(r,0)); });
         btnDelete.addActionListener(e -> deleteUser());
+        
+        txtSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { search(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { search(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { search(); }
+        });
 
         loadUsers();
+    }
+    
+    private void search() {
+        String text = txtSearch.getText().trim();
+        if (text.isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
+        }
     }
 
     private void style(JButton b){ b.setBackground(Theme.PRIMARY); b.setForeground(Color.WHITE); b.setFocusPainted(false); b.setBorderPainted(false); }
@@ -47,7 +87,9 @@ public class UsersPanel extends JPanel {
             String sql = "SELECT u.user_id, u.username, u.fullname, u.email, r.role_name, u.status FROM users u LEFT JOIN roles r ON u.role_id = r.role_id ORDER BY u.user_id";
             Statement st = conn.createStatement();
             ResultSet rs = st.executeQuery(sql);
+            boolean hasData = false;
             while (rs.next()){
+                hasData = true;
                 model.addRow(new Object[]{
                     rs.getString("user_id"),
                     rs.getString("username"),
@@ -56,6 +98,9 @@ public class UsersPanel extends JPanel {
                     rs.getString("role_name"),
                     rs.getString("status")
                 });
+            }
+            if (!hasData) {
+                model.addRow(new Object[]{"", "No users found", "Click 'Add User' to create a new user", "", "", ""});
             }
         } catch (SQLException e){ JOptionPane.showMessageDialog(this, "Error loading users: "+e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE); }
     }
@@ -174,7 +219,7 @@ public class UsersPanel extends JPanel {
 
     private void deleteUser(){
         int r = table.getSelectedRow(); if (r==-1){ JOptionPane.showMessageDialog(this,"Select user"); return; }
-        String id = (String)model.getValueAt(r,0);
+        String id = (String)table.getValueAt(r,0);
         int c = JOptionPane.showConfirmDialog(this, "Delete user?","Confirm",JOptionPane.YES_NO_OPTION);
         if (c!=JOptionPane.YES_OPTION) return;
         try (Connection conn = DbConnection.getConnection()){

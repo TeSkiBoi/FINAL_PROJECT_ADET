@@ -43,7 +43,6 @@ public class Logger {
             timestamp, username, action, details);
         
         writeToFile(USER_LOG_FILE, logMessage);
-        System.out.println(logMessage.trim()); // Also print to console
     }
     
     /**
@@ -81,7 +80,6 @@ public class Logger {
         }
         
         writeToFile(ERROR_LOG_FILE, logMessage.toString());
-        System.err.println(logMessage.toString()); // Also print to error console
     }
     
     /**
@@ -161,7 +159,6 @@ public class Logger {
         String timestamp = DATE_FORMAT.format(new Date());
         String logMessage = String.format("[%s] INFO: %s%n", timestamp, message);
         writeToFile(USER_LOG_FILE, logMessage);
-        System.out.println(logMessage.trim());
     }
     
     /**
@@ -172,7 +169,6 @@ public class Logger {
         String timestamp = DATE_FORMAT.format(new Date());
         String logMessage = String.format("[%s] WARNING: %s%n", timestamp, message);
         writeToFile(ERROR_LOG_FILE, logMessage);
-        System.err.println(logMessage.trim());
     }
     
     /**

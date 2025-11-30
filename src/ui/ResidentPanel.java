@@ -6,6 +6,7 @@ import javax.swing.table.TableRowSorter;
 import model.ResidentModel;
 import java.awt.*;
 import java.util.List;
+import theme.Theme;
 
 public class ResidentPanel extends JPanel {
     private JTable residentTable;
@@ -17,6 +18,12 @@ public class ResidentPanel extends JPanel {
     public ResidentPanel() {
         setLayout(new BorderLayout(10, 10));
         setBackground(Theme.PRIMARY_LIGHT);
+
+        // Panel title
+        JLabel titleLabel = new JLabel("👥 All Residents");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        titleLabel.setForeground(Theme.PRIMARY);
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
 
         // Top panel with search
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -37,7 +44,12 @@ public class ResidentPanel extends JPanel {
         lblNote.setFont(new Font("Arial", Font.ITALIC, 11));
         topPanel.add(lblNote);
 
-        add(topPanel, BorderLayout.NORTH);
+        // Combine title and toolbar
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
+        headerPanel.add(titleLabel, BorderLayout.NORTH);
+        headerPanel.add(topPanel, BorderLayout.CENTER);
+        add(headerPanel, BorderLayout.NORTH);
 
         // Table setup
         tableModel = new DefaultTableModel(
@@ -87,19 +99,23 @@ public class ResidentPanel extends JPanel {
     private void loadResidents() {
         tableModel.setRowCount(0);
         List<ResidentModel> residents = ResidentModel.getAll();
-        for (ResidentModel residentItem : residents) {
-            tableModel.addRow(new Object[] {
-                residentItem.getResidentId(),
-                residentItem.getHouseholdId() != null ? residentItem.getHouseholdId() : "N/A",
-                residentItem.getFirstName(),
-                residentItem.getMiddleName(),
-                residentItem.getLastName(),
-                residentItem.getBirthDate(),
-                residentItem.getAge(),
-                residentItem.getGender(),
-                residentItem.getContactNo(),
-                residentItem.getEmail()
-            });
+        if (residents.isEmpty()) {
+            tableModel.addRow(new Object[]{"", "", "No residents found", "Add residents through Households", "", "", "", "", "", ""});
+        } else {
+            for (ResidentModel residentItem : residents) {
+                tableModel.addRow(new Object[] {
+                    residentItem.getResidentId(),
+                    residentItem.getHouseholdId() != null ? residentItem.getHouseholdId() : "N/A",
+                    residentItem.getFirstName(),
+                    residentItem.getMiddleName(),
+                    residentItem.getLastName(),
+                    residentItem.getBirthDate(),
+                    residentItem.getAge(),
+                    residentItem.getGender(),
+                    residentItem.getContactNo(),
+                    residentItem.getEmail()
+                });
+            }
         }
     }
 }

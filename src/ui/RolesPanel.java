@@ -8,6 +8,7 @@ import model.User;
 import java.awt.*;
 import java.sql.*;
 import db.DbConnection;
+import theme.Theme;
 
 public class RolesPanel extends JPanel {
     private JTable table;
@@ -19,6 +20,13 @@ public class RolesPanel extends JPanel {
     public RolesPanel() {
         setLayout(new BorderLayout(10, 10));
         setBackground(Theme.PRIMARY_LIGHT);
+
+        // Panel title
+        JLabel titleLabel = new JLabel("🔐 Role Management");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        titleLabel.setForeground(Theme.PRIMARY);
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        add(titleLabel, BorderLayout.NORTH);
 
         // Top toolbar
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -45,11 +53,16 @@ public class RolesPanel extends JPanel {
         top.add(btnEdit);
         top.add(btnDelete);
 
-        add(top, BorderLayout.NORTH);
+        // Combine title and toolbar
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setBackground(Theme.PRIMARY_LIGHT);
+        topPanel.add(titleLabel, BorderLayout.NORTH);
+        topPanel.add(top, BorderLayout.CENTER);
+        add(topPanel, BorderLayout.NORTH);
 
         // Table
         tableModel = new DefaultTableModel(
-            new Object[]{"Role ID", "Role Name", "Description", "Permissions"}, 0) {
+            new Object[]{"Role ID", "Role Name"}, 0) {
             public boolean isCellEditable(int row, int column) {
                 return false;
             }
@@ -113,16 +126,19 @@ public class RolesPanel extends JPanel {
     private void loadRoles() {
         tableModel.setRowCount(0);
         try (Connection conn = DbConnection.getConnection()) {
-            String sql = "SELECT role_id, role_name, description, permissions FROM roles ORDER BY role_id";
+            String sql = "SELECT role_id, role_name FROM roles ORDER BY role_id";
             Statement st = conn.createStatement();
             ResultSet rs = st.executeQuery(sql);
+            boolean hasData = false;
             while (rs.next()) {
+                hasData = true;
                 tableModel.addRow(new Object[]{
                     rs.getString("role_id"),
                     rs.getString("role_name"),
-                    rs.getString("description"),
-                    rs.getString("permissions")
                 });
+            }
+            if (!hasData) {
+                tableModel.addRow(new Object[]{"", "No roles found", "Click 'Add Role' to create a new role", ""});
             }
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Error loading roles: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
@@ -138,16 +154,10 @@ public class RolesPanel extends JPanel {
         panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
         JTextField txtRoleName = new JTextField();
-        JTextArea txtDescription = new JTextArea(3, 20);
-        JTextArea txtPermissions = new JTextArea(5, 20);
 
         panel.add(new JLabel("Role Name:*"));
         panel.add(txtRoleName);
-        panel.add(new JLabel("Description:"));
-        panel.add(new JScrollPane(txtDescription));
-        panel.add(new JLabel("Permissions:"));
-        panel.add(new JScrollPane(txtPermissions));
-
+        
         if (isEdit) {
             try (Connection conn = DbConnection.getConnection()) {
                 PreparedStatement ps = conn.prepareStatement("SELECT * FROM roles WHERE role_id = ?");
@@ -155,8 +165,6 @@ public class RolesPanel extends JPanel {
                 ResultSet rs = ps.executeQuery();
                 if (rs.next()) {
                     txtRoleName.setText(rs.getString("role_name"));
-                    txtDescription.setText(rs.getString("description"));
-                    txtPermissions.setText(rs.getString("permissions"));
                 }
             } catch (SQLException e) {
                 JOptionPane.showMessageDialog(this, "Error loading role: " + e.getMessage());
@@ -172,29 +180,34 @@ public class RolesPanel extends JPanel {
         btnPanel.add(btnCancel);
 
         btnSave.addActionListener(ae -> {
+            // Validate required fields
+            String roleName = txtRoleName.getText().trim();
+            
+            if (roleName.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog, "Role Name is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+                txtRoleName.requestFocus();
+                return;
+            }
+            
             try (Connection conn = DbConnection.getConnection()) {
                 if (!isEdit) {
-                    String sql = "INSERT INTO roles (role_name, description, permissions) VALUES (?, ?, ?)";
+                    String sql = "INSERT INTO roles (role_name) VALUES (?)";
                     PreparedStatement ps = conn.prepareStatement(sql);
-                    ps.setString(1, txtRoleName.getText().trim());
-                    ps.setString(2, txtDescription.getText().trim());
-                    ps.setString(3, txtPermissions.getText().trim());
+                    ps.setString(1, roleName);
                     ps.executeUpdate();
-                    JOptionPane.showMessageDialog(dialog, "Role added successfully");
+                    JOptionPane.showMessageDialog(dialog, "✓ Role added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 } else {
-                    String sql = "UPDATE roles SET role_name=?, description=?, permissions=? WHERE role_id=?";
+                    String sql = "UPDATE roles SET role_name=? WHERE role_id=?";
                     PreparedStatement ps = conn.prepareStatement(sql);
-                    ps.setString(1, txtRoleName.getText().trim());
-                    ps.setString(2, txtDescription.getText().trim());
-                    ps.setString(3, txtPermissions.getText().trim());
-                    ps.setString(4, roleId);
+                    ps.setString(1, roleName);
+                    ps.setString(2, roleId);
                     ps.executeUpdate();
-                    JOptionPane.showMessageDialog(dialog, "Role updated successfully");
+                    JOptionPane.showMessageDialog(dialog, "✓ Role updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 }
                 dialog.dispose();
                 loadRoles();
             } catch (Exception e) {
-                JOptionPane.showMessageDialog(dialog, "Error: " + e.getMessage());
+                JOptionPane.showMessageDialog(dialog, "Database error: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
 

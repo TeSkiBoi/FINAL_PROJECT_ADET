@@ -4,6 +4,7 @@ import javax.swing.table.*;
 import java.awt.*;
 import java.sql.*;
 import db.DbConnection;
+import theme.Theme;
 
 public class SupplierPanel extends JPanel {
     private JTable table;
@@ -11,6 +12,7 @@ public class SupplierPanel extends JPanel {
     private JTextField txtName, txtContact, txtAddress, txtSearch;
     private JButton btnAdd, btnUpdate, btnDelete, btnClear, btnSearch;
     private JComboBox<String> statusCombo;
+    private TableRowSorter<DefaultTableModel> sorter;
 
     public SupplierPanel() {
         setLayout(new BorderLayout(10, 10));
@@ -90,6 +92,8 @@ public class SupplierPanel extends JPanel {
         };
         
         table = new JTable(model);
+        sorter = new TableRowSorter<>(model);
+        table.setRowSorter(sorter);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.getTableHeader().setReorderingAllowed(false);
         
@@ -120,8 +124,24 @@ public class SupplierPanel extends JPanel {
         btnClear.addActionListener(e -> clearForm());
         btnSearch.addActionListener(e -> searchSuppliers());
         
+        // Add live search
+        txtSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { performLiveSearch(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { performLiveSearch(); }
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { performLiveSearch(); }
+        });
+        
         // Add search on enter key
         txtSearch.addActionListener(e -> searchSuppliers());
+    }
+    
+    private void performLiveSearch() {
+        String text = txtSearch.getText().trim();
+        if (text.isEmpty()) {
+            sorter.setRowFilter(null);
+        } else {
+            sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
+        }
     }
 
     private void styleButton(JButton button) {
@@ -221,7 +241,9 @@ public class SupplierPanel extends JPanel {
 
     private void updateTableModel(ResultSet rs) throws SQLException {
         model.setRowCount(0);
+        boolean hasData = false;
         while (rs.next()) {
+            hasData = true;
             model.addRow(new Object[]{
                 rs.getInt("id"),
                 rs.getString("name"),
@@ -229,6 +251,9 @@ public class SupplierPanel extends JPanel {
                 rs.getString("address"),
                 rs.getString("status")
             });
+        }
+        if (!hasData) {
+            model.addRow(new Object[]{"", "No suppliers found", "Click 'Add Supplier' to create a new supplier", "", ""});
         }
     }
 

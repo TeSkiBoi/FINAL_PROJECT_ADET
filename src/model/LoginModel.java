@@ -15,7 +15,6 @@ public class LoginModel {
     public LoginModel() {
         try {
             this.connection = DbConnection.getConnection();
-            System.out.println("[DEBUG] Database connection acquired.");
         } catch (SQLException e) {
             System.err.println("[ERROR] Failed to acquire DB connection:");
             e.printStackTrace();
@@ -52,10 +51,6 @@ public class LoginModel {
     }
 
     public boolean login(String usernameOrEmail, String password) {
-        System.out.println("\n=== LOGIN ATTEMPT ===");
-        System.out.println("[INPUT] Username/Email: " + usernameOrEmail);
-        System.out.println("[INPUT] Password: " + password);
-
         if (connection == null) {
             System.err.println("[ERROR] No database connection.");
             return false;
@@ -74,9 +69,6 @@ public class LoginModel {
             }
 
             String sql = "SELECT user_id, " + hashedCol + " AS hashed_password, " + saltCol + " AS salt, role_id, status, fullname, email, username FROM users WHERE username = ? OR email = ?";
-
-            System.out.println("[DEBUG] Executing SQL:");
-            System.out.println(sql);
 
             try (PreparedStatement stmt = connection.prepareStatement(sql)) {
                 stmt.setString(1, usernameOrEmail);
@@ -99,16 +91,6 @@ public class LoginModel {
                 String status = rs.getString("status");
                 String roleId = rs.getString("role_id");
 
-                System.out.println("=== DATABASE VALUES RECEIVED ===");
-                System.out.println("User ID: " + userId);
-                System.out.println("Username: " + username);
-                System.out.println("Fullname: " + fullname);
-                System.out.println("Email: " + email);
-                System.out.println("Role ID: " + roleId);
-                System.out.println("Status: " + status);
-                System.out.println("Stored Salt: " + storedSalt);
-                System.out.println("Stored Hash: " + storedHash);
-
                 if (!"active".equalsIgnoreCase(status)) {
                     System.err.println("[ERROR] Account is inactive.");
                     return false;
@@ -119,12 +101,9 @@ public class LoginModel {
                     return false;
                 }
 
-                System.out.println("[DEBUG] Starting PBKDF2 verification...");
                 boolean ok = PasswordHashing.verifyPassword(password, storedSalt, storedHash);
 
                 if (ok) {
-                    System.out.println("[SUCCESS] Password verified successfully!");
-
                     // (Optional session logic)
                     UserModel um = new UserModel();
                     um.logUserActivity(userId, "User logged in", getLocalIpAddress());
@@ -154,7 +133,6 @@ public class LoginModel {
 
     public String getRole(String usernameOrEmail) {
         String sql = "SELECT role_id FROM users WHERE username = ? OR email = ?";
-        System.out.println("[DEBUG] Checking role with SQL: " + sql);
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, usernameOrEmail);
@@ -162,7 +140,6 @@ public class LoginModel {
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
                 String role = rs.getString("role_id");
-                System.out.println("[DEBUG] Role found: " + role);
                 return role;
             }
         } catch (SQLException e) {
@@ -181,8 +158,6 @@ public class LoginModel {
     }
 
     public boolean userNeedsPasswordReset(String usernameOrEmail) {
-        System.out.println("[DEBUG] Checking if user needs password reset: " + usernameOrEmail);
-
         if (connection == null) return false;
 
         try {
@@ -191,7 +166,6 @@ public class LoginModel {
             String saltCol = firstExistingColumnName(cols, "salt", "password_salt", "passwordSalt");
 
             if (hashedCol == null || saltCol == null) {
-                System.out.println("[DEBUG] Required columns not found for reset check. Columns found: " + cols);
                 return false;
             }
 
@@ -206,9 +180,6 @@ public class LoginModel {
                     String h = rs.getString("hashed_password");
                     String s = rs.getString("salt");
 
-                    System.out.println("[DEBUG] Existing hash: " + h);
-                    System.out.println("[DEBUG] Existing salt: " + s);
-
                     return (h == null || h.isEmpty() || s == null || s.isEmpty());
                 }
             }
@@ -220,8 +191,6 @@ public class LoginModel {
 
     public boolean setUserPassword(String usernameOrEmail, String newPassword)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
-
-        System.out.println("[DEBUG] Setting new PBKDF2 password for: " + usernameOrEmail);
 
         if (connection == null) return false;
 
@@ -248,9 +217,6 @@ public class LoginModel {
                     String salt = PasswordHashing.generateSalt();
                     String hash = PasswordHashing.hashPassword(newPassword, salt);
 
-                    System.out.println("[DEBUG] Generated Salt: " + salt);
-                    System.out.println("[DEBUG] Generated Hash: " + hash);
-
                     // Build update to set whichever columns exist (set both if both exist)
                     StringBuilder updateSql = new StringBuilder("UPDATE users SET ");
                     boolean first = true;
@@ -268,7 +234,6 @@ public class LoginModel {
 
                         boolean updated = pu.executeUpdate() > 0;
 
-                        System.out.println("[DEBUG] Update status: " + updated);
                         return updated;
                     }
                 } else {

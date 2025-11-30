@@ -7,6 +7,7 @@ import db.DbConnection;
 import model.SessionManager;
 import model.User;
 import model.UserModel;
+import theme.Theme;
 
 public class Dashboard extends JFrame {
     private JPanel sidePanel, mainPanel;

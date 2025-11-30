@@ -35,7 +35,6 @@ public class PasswordHashing {
     // Verify password
     public static boolean verifyPassword(String password, String salt, String expectedHash) throws NoSuchAlgorithmException, InvalidKeySpecException {
         String hash = hashPassword(password, salt);
-        System.out.println(hash);
         return hash.equals(expectedHash);
     }
 }

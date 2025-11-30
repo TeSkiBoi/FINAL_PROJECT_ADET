@@ -11,6 +11,7 @@ public class ResidentModel {
     private String firstName;
     private String middleName;
     private String lastName;
+    private String suffix;
     private Date birthDate;
     private int age;
     private String gender;
@@ -19,12 +20,13 @@ public class ResidentModel {
 
     public ResidentModel() {}
 
-    public ResidentModel(int residentId, Integer householdId, String firstName, String middleName, String lastName, Date birthDate, int age, String gender, String contactNo, String email) {
+    public ResidentModel(int residentId, Integer householdId, String firstName, String middleName, String lastName, String suffix, Date birthDate, int age, String gender, String contactNo, String email) {
         this.residentId = residentId;
         this.householdId = householdId;
         this.firstName = firstName;
         this.middleName = middleName;
         this.lastName = lastName;
+        this.suffix = suffix;
         this.birthDate = birthDate;
         this.age = age;
         this.gender = gender;
@@ -36,7 +38,7 @@ public class ResidentModel {
 
     public static List<ResidentModel> getAll() {
         List<ResidentModel> list = new ArrayList<>();
-        String sql = "SELECT resident_id, household_id, first_name, middle_name, last_name, birth_date, age, gender, contact_no, email FROM residents ORDER BY last_name, first_name";
+        String sql = "SELECT resident_id, household_id, first_name, middle_name, last_name, suffix, birth_date, age, gender, contact_no, email FROM residents ORDER BY last_name, first_name";
         try (Connection conn = DbConnection.getConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 ResidentModel r = new ResidentModel();
@@ -47,6 +49,7 @@ public class ResidentModel {
                 r.setFirstName(rs.getString("first_name"));
                 r.setMiddleName(rs.getString("middle_name"));
                 r.setLastName(rs.getString("last_name"));
+                r.setSuffix(rs.getString("suffix"));
                 r.setBirthDate(rs.getDate("birth_date"));
                 r.setAge(rs.getInt("age"));
                 r.setGender(rs.getString("gender"));
@@ -61,7 +64,10 @@ public class ResidentModel {
     }
 
     public boolean create() {
-        String sql = "INSERT INTO residents (household_id, first_name, middle_name, last_name, birth_date, age, gender, contact_no, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        // Auto-calculate age from birthdate
+        calculateAndSetAge();
+        
+        String sql = "INSERT INTO residents (household_id, first_name, middle_name, last_name, suffix, birth_date, age, gender, contact_no, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             // Handle nullable household_id
             if (this.householdId == null) {
@@ -72,11 +78,12 @@ public class ResidentModel {
             ps.setString(2, this.firstName);
             ps.setString(3, this.middleName);
             ps.setString(4, this.lastName);
-            ps.setDate(5, this.birthDate);
-            ps.setInt(6, this.age);
-            ps.setString(7, this.gender);
-            ps.setString(8, this.contactNo);
-            ps.setString(9, this.email);
+            ps.setString(5, this.suffix);
+            ps.setDate(6, this.birthDate);
+            ps.setInt(7, this.age);
+            ps.setString(8, this.gender);
+            ps.setString(9, this.contactNo);
+            ps.setString(10, this.email);
             int rows = ps.executeUpdate();
             if (rows > 0) {
                 try (ResultSet rs = ps.getGeneratedKeys()) {
@@ -91,7 +98,10 @@ public class ResidentModel {
     }
 
     public boolean update() {
-        String sql = "UPDATE residents SET household_id=?, first_name=?, middle_name=?, last_name=?, birth_date=?, age=?, gender=?, contact_no=?, email=? WHERE resident_id=?";
+        // Auto-calculate age from birthdate
+        calculateAndSetAge();
+        
+        String sql = "UPDATE residents SET household_id=?, first_name=?, middle_name=?, last_name=?, suffix=?, birth_date=?, age=?, gender=?, contact_no=?, email=? WHERE resident_id=?";
         try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             // Handle nullable household_id
             if (this.householdId == null) {
@@ -102,12 +112,13 @@ public class ResidentModel {
             ps.setString(2, this.firstName);
             ps.setString(3, this.middleName);
             ps.setString(4, this.lastName);
-            ps.setDate(5, this.birthDate);
-            ps.setInt(6, this.age);
-            ps.setString(7, this.gender);
-            ps.setString(8, this.contactNo);
-            ps.setString(9, this.email);
-            ps.setInt(10, this.residentId);
+            ps.setString(5, this.suffix);
+            ps.setDate(6, this.birthDate);
+            ps.setInt(7, this.age);
+            ps.setString(8, this.gender);
+            ps.setString(9, this.contactNo);
+            ps.setString(10, this.email);
+            ps.setInt(11, this.residentId);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             e.printStackTrace();
@@ -126,6 +137,38 @@ public class ResidentModel {
         return false;
     }
 
+    /**
+     * Calculate age from birthdate to current date
+     * @param birthDate The birthdate
+     * @return Calculated age in years
+     */
+    public static int calculateAge(Date birthDate) {
+        if (birthDate == null) return 0;
+        
+        java.util.Calendar birthCal = java.util.Calendar.getInstance();
+        birthCal.setTime(birthDate);
+        
+        java.util.Calendar today = java.util.Calendar.getInstance();
+        
+        int age = today.get(java.util.Calendar.YEAR) - birthCal.get(java.util.Calendar.YEAR);
+        
+        // Check if birthday hasn't occurred yet this year
+        if (today.get(java.util.Calendar.MONTH) < birthCal.get(java.util.Calendar.MONTH) ||
+            (today.get(java.util.Calendar.MONTH) == birthCal.get(java.util.Calendar.MONTH) &&
+             today.get(java.util.Calendar.DAY_OF_MONTH) < birthCal.get(java.util.Calendar.DAY_OF_MONTH))) {
+            age--;
+        }
+        
+        return age < 0 ? 0 : age;
+    }
+    
+    /**
+     * Calculate and set age based on current birthdate
+     */
+    public void calculateAndSetAge() {
+        this.age = calculateAge(this.birthDate);
+    }
+
     // ===== Getters and setters =====
 
     public int getResidentId() { return residentId; }
@@ -138,6 +181,8 @@ public class ResidentModel {
     public void setMiddleName(String middleName) { this.middleName = middleName; }
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { this.lastName = lastName; }
+    public String getSuffix() { return suffix; }
+    public void setSuffix(String suffix) { this.suffix = suffix; }
     public Date getBirthDate() { return birthDate; }
     public void setBirthDate(Date birthDate) { this.birthDate = birthDate; }
     public int getAge() { return age; }

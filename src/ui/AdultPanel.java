@@ -4,10 +4,11 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
-import java.sql.*;
-import db.DbConnection;
+import java.util.List;
+import model.AdultModel;
 import model.SessionManager;
 import model.User;
+import theme.Theme;
 
 public class AdultPanel extends JPanel {
     private JTable table;
@@ -19,6 +20,12 @@ public class AdultPanel extends JPanel {
     public AdultPanel() {
         setLayout(new BorderLayout(10, 10));
         setBackground(Theme.PRIMARY_LIGHT);
+
+        // Panel title
+        JLabel titleLabel = new JLabel("👨‍👩‍👧 Adult Residents (18-59 years)");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        titleLabel.setForeground(Theme.PRIMARY);
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
 
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.setBackground(Theme.PRIMARY_LIGHT);
@@ -38,9 +45,15 @@ public class AdultPanel extends JPanel {
         lblNote.setFont(new Font("Arial", Font.ITALIC, 11));
         top.add(lblNote);
         
-        add(top, BorderLayout.NORTH);
+        // Combine title and toolbar
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
+        headerPanel.add(titleLabel, BorderLayout.NORTH);
+        headerPanel.add(top, BorderLayout.CENTER);
+        
+        add(headerPanel, BorderLayout.NORTH);
 
-        model = new DefaultTableModel(new String[]{"ID", "Name", "Age", "Gender", "Household", "Contact", "Email"}, 0) {
+        model = new DefaultTableModel(new String[]{"ID", "Name", "Age", "Gender", "Contact", "Email"}, 0) {
             @Override
             public boolean isCellEditable(int r, int c) { return false; }
         };
@@ -78,26 +91,29 @@ public class AdultPanel extends JPanel {
 
     private void loadAdults() {
         model.setRowCount(0);
-        try (Connection conn = DbConnection.getConnection()) {
-            String sql = "SELECT resident_id, CONCAT(first_name, ' ', last_name) as name, age, gender, household_id, contact_no, email " +
-                        "FROM residents WHERE age >= 18 AND age < 60 ORDER BY last_name, first_name";
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery(sql);
-            while (rs.next()) {
-                int hId = rs.getInt("household_id");
-                String householdDisplay = rs.wasNull() ? "N/A" : String.valueOf(hId);
-                model.addRow(new Object[]{
-                    rs.getInt("resident_id"),
-                    rs.getString("name"),
-                    rs.getInt("age"),
-                    rs.getString("gender"),
-                    householdDisplay,
-                    rs.getString("contact_no"),
-                    rs.getString("email")
-                });
+        
+        try {
+            List<AdultModel.Adult> adults = AdultModel.getAllAdults();
+            
+            if (adults.isEmpty()) {
+                model.addRow(new Object[]{"", "No adults found", "Add residents through Households", "", "", ""});
+            } else {
+                for (AdultModel.Adult adult : adults) {
+                    model.addRow(new Object[]{
+                        adult.getResidentId(),
+                        adult.getName(),
+                        adult.getAge(),
+                        adult.getGender(),
+                        adult.getContactNo(),
+                        adult.getEmail()
+                    });
+                }
             }
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Error loading adults: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, 
+                "Error loading adults: " + e.getMessage(), 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 
