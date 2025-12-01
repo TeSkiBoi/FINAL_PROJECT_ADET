@@ -153,11 +153,44 @@ public class BlotterPanel extends JPanel {
     }
 
     private void openDialog(Integer id){
-        boolean isEdit = id!=null; JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), isEdit?"Edit Incident":"Add Incident", Dialog.ModalityType.APPLICATION_MODAL);
-        JPanel p = new JPanel(new GridLayout(0,2,8,8)); p.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
-        JTextField txtCase = new JTextField(); JComboBox<String> cboType = new JComboBox<>(new String[]{"Complaint","Dispute","Noise Complaint","Domestic Issue","Theft","Assault","Vandalism","Public Disturbance","Other"});
-        JTextField txtDate = new JTextField("yyyy-MM-dd"); JTextField txtTime = new JTextField("HH:mm:ss"); JTextField txtLocation = new JTextField(); JTextField txtComplainant = new JTextField(); JTextField txtRespondent = new JTextField(); JComboBox<String> cboStatus = new JComboBox<>(new String[]{"Pending","Under Investigation","For Mediation","Resolved","Closed","Escalated"});
-        p.add(new JLabel("Case Number:")); p.add(txtCase); p.add(new JLabel("Type:")); p.add(cboType); p.add(new JLabel("Date:")); p.add(txtDate); p.add(new JLabel("Time:")); p.add(txtTime); p.add(new JLabel("Location:")); p.add(txtLocation); p.add(new JLabel("Complainant:")); p.add(txtComplainant); p.add(new JLabel("Respondent:")); p.add(txtRespondent); p.add(new JLabel("Status:")); p.add(cboStatus);
+        boolean isEdit = id!=null; 
+        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), isEdit?"Edit Incident":"Add Incident", Dialog.ModalityType.APPLICATION_MODAL);
+        dlg.setSize(500, 450);
+        dlg.setLocationRelativeTo(this);
+        
+        JPanel p = new JPanel(new GridLayout(0,2,8,8)); 
+        p.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
+        
+        JTextField txtCase = new JTextField(); 
+        JComboBox<String> cboType = new JComboBox<>(new String[]{"Complaint","Dispute","Noise Complaint","Domestic Issue","Theft","Assault","Vandalism","Public Disturbance","Other"});
+        
+        // Date Spinner with yyyy-MM-dd format
+        SpinnerDateModel dateModel = new SpinnerDateModel();
+        JSpinner spinDate = new JSpinner(dateModel);
+        JSpinner.DateEditor dateEditor = new JSpinner.DateEditor(spinDate, "yyyy-MM-dd");
+        spinDate.setEditor(dateEditor);
+        spinDate.setValue(new java.util.Date());
+        
+        // Time Spinner with 12-hour format and AM/PM
+        SpinnerDateModel timeModel = new SpinnerDateModel();
+        JSpinner spinTime = new JSpinner(timeModel);
+        JSpinner.DateEditor timeEditor = new JSpinner.DateEditor(spinTime, "hh:mm:ss a");
+        spinTime.setEditor(timeEditor);
+        spinTime.setValue(new java.util.Date());
+        
+        JTextField txtLocation = new JTextField(); 
+        JTextField txtComplainant = new JTextField(); 
+        JTextField txtRespondent = new JTextField(); 
+        JComboBox<String> cboStatus = new JComboBox<>(new String[]{"Pending","Under Investigation","For Mediation","Resolved","Closed","Escalated"});
+        
+        p.add(new JLabel("Case Number: *")); p.add(txtCase); 
+        p.add(new JLabel("Type: *")); p.add(cboType); 
+        p.add(new JLabel("Date: *")); p.add(spinDate); 
+        p.add(new JLabel("Time: *")); p.add(spinTime); 
+        p.add(new JLabel("Location: *")); p.add(txtLocation); 
+        p.add(new JLabel("Complainant: *")); p.add(txtComplainant); 
+        p.add(new JLabel("Respondent: *")); p.add(txtRespondent); 
+        p.add(new JLabel("Status: *")); p.add(cboStatus);
 
         if (isEdit){ 
             try {
@@ -165,10 +198,26 @@ public class BlotterPanel extends JPanel {
                 if (incident != null) {
                     txtCase.setText(incident.getCaseNumber()); 
                     cboType.setSelectedItem(incident.getIncidentType()); 
+                    
+                    // Set date spinner value
                     Date d = incident.getIncidentDate(); 
-                    if (d!=null) txtDate.setText(d.toString()); 
+                    if (d != null) {
+                        spinDate.setValue(new java.util.Date(d.getTime()));
+                    }
+                    
+                    // Set time spinner value
                     Time t = incident.getIncidentTime(); 
-                    if (t!=null) txtTime.setText(t.toString()); 
+                    if (t != null) {
+                        // Combine today's date with the time from database
+                        java.util.Calendar cal = java.util.Calendar.getInstance();
+                        java.util.Calendar timeCal = java.util.Calendar.getInstance();
+                        timeCal.setTime(t);
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, timeCal.get(java.util.Calendar.HOUR_OF_DAY));
+                        cal.set(java.util.Calendar.MINUTE, timeCal.get(java.util.Calendar.MINUTE));
+                        cal.set(java.util.Calendar.SECOND, timeCal.get(java.util.Calendar.SECOND));
+                        spinTime.setValue(cal.getTime());
+                    }
+                    
                     txtLocation.setText(incident.getLocation()); 
                     txtComplainant.setText(incident.getComplainant()); 
                     txtRespondent.setText(incident.getRespondent()); 
@@ -179,12 +228,17 @@ public class BlotterPanel extends JPanel {
             } 
         }
 
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT)); JButton save = new JButton("Save"); JButton cancel = new JButton("Cancel"); styleButton(save); styleButton(cancel); btns.add(save); btns.add(cancel);
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT)); 
+        JButton save = new JButton("Save"); 
+        JButton cancel = new JButton("Cancel"); 
+        styleButton(save); 
+        styleButton(cancel); 
+        btns.add(save); 
+        btns.add(cancel);
+        
         save.addActionListener(ae->{ 
             // Validate required fields
             String caseNum = txtCase.getText().trim();
-            String dateStr = txtDate.getText().trim();
-            String timeStr = txtTime.getText().trim();
             String location = txtLocation.getText().trim();
             String complainant = txtComplainant.getText().trim();
             String respondent = txtRespondent.getText().trim();
@@ -192,16 +246,6 @@ public class BlotterPanel extends JPanel {
             if (caseNum.isEmpty()) {
                 JOptionPane.showMessageDialog(dlg, "Case Number is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
                 txtCase.requestFocus();
-                return;
-            }
-            if (dateStr.isEmpty() || dateStr.equals("yyyy-MM-dd")) {
-                JOptionPane.showMessageDialog(dlg, "Incident Date is required!\nFormat: yyyy-MM-dd (e.g., 2025-11-30)", "Validation Error", JOptionPane.ERROR_MESSAGE);
-                txtDate.requestFocus();
-                return;
-            }
-            if (timeStr.isEmpty() || timeStr.equals("HH:mm:ss")) {
-                JOptionPane.showMessageDialog(dlg, "Incident Time is required!\nFormat: HH:mm:ss (e.g., 14:30:00)", "Validation Error", JOptionPane.ERROR_MESSAGE);
-                txtTime.requestFocus();
                 return;
             }
             if (location.isEmpty()) {
@@ -221,24 +265,13 @@ public class BlotterPanel extends JPanel {
             }
             
             try { 
-                Date incidentDate = null;
-                Time incidentTime = null;
+                // Get date from spinner
+                java.util.Date dateValue = (java.util.Date) spinDate.getValue();
+                Date incidentDate = new Date(dateValue.getTime());
                 
-                try {
-                    incidentDate = Date.valueOf(dateStr);
-                } catch (IllegalArgumentException e) {
-                    JOptionPane.showMessageDialog(dlg, "Invalid date format!\nExpected format: yyyy-MM-dd (e.g., 2025-11-30)", "Format Error", JOptionPane.ERROR_MESSAGE);
-                    txtDate.requestFocus();
-                    return;
-                }
-                
-                try {
-                    incidentTime = Time.valueOf(timeStr);
-                } catch (IllegalArgumentException e) {
-                    JOptionPane.showMessageDialog(dlg, "Invalid time format!\nExpected format: HH:mm:ss (e.g., 14:30:00)", "Format Error", JOptionPane.ERROR_MESSAGE);
-                    txtTime.requestFocus();
-                    return;
-                }
+                // Get time from spinner
+                java.util.Date timeValue = (java.util.Date) spinTime.getValue();
+                Time incidentTime = new Time(timeValue.getTime());
                 
                 boolean success;
                 if (!isEdit){ 

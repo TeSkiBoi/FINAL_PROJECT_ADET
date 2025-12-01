@@ -202,19 +202,19 @@ public class ProjectsPanel extends JPanel {
         txtRemarks.setLineWrap(true);
         txtRemarks.setWrapStyleWord(true);
 
-        panel.add(new JLabel("Project Name:*"));
+        panel.add(new JLabel("Project Name: *"));
         panel.add(txtProjectName);
         panel.add(new JLabel("Description:"));
         panel.add(new JScrollPane(txtDescription));
-        panel.add(new JLabel("Status:*"));
+        panel.add(new JLabel("Status: *"));
         panel.add(cboStatus);
-        panel.add(new JLabel("Start Date:*"));
+        panel.add(new JLabel("Start Date: *"));
         panel.add(spinStartDate);
         panel.add(new JLabel("End Date:"));
         panel.add(spinEndDate);
-        panel.add(new JLabel("Proponent:*"));
+        panel.add(new JLabel("Proponent: *"));
         panel.add(txtProponent);
-        panel.add(new JLabel("Total Budget (₱):*"));
+        panel.add(new JLabel("Total Budget (₱): *"));
         panel.add(txtBudget);
         panel.add(new JLabel("Progress (%):"));
         panel.add(txtProgress);

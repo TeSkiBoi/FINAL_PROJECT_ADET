@@ -43,6 +43,28 @@ public class Dashboard extends JFrame {
         mainContainer.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         setContentPane(mainContainer);
 
+        // Title Header Panel
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setBackground(Theme.PRIMARY);
+        titlePanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+        
+        JLabel titleLabel = new JLabel("Barangay Management System");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 28));
+        titleLabel.setForeground(Color.WHITE);
+        
+        JLabel subtitleLabel = new JLabel("Administrative Dashboard");
+        subtitleLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+        subtitleLabel.setForeground(new Color(220, 220, 220));
+        
+        JPanel titleTextPanel = new JPanel(new GridLayout(2, 1, 0, 5));
+        titleTextPanel.setBackground(Theme.PRIMARY);
+        titleTextPanel.add(titleLabel);
+        titleTextPanel.add(subtitleLabel);
+        
+        titlePanel.add(titleTextPanel, BorderLayout.WEST);
+        
+        mainContainer.add(titlePanel, BorderLayout.NORTH);
+
         // Sidebar
         sidePanel = new JPanel();
         sidePanel.setPreferredSize(new Dimension(220, getHeight()));

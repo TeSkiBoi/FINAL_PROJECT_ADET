@@ -214,17 +214,17 @@ public class FinancialPanel extends JPanel {
         JTextField txtPayeePayer = new JTextField();
         JTextField txtReferenceNo = new JTextField();
 
-        panel.add(new JLabel("Date:*"));
+        panel.add(new JLabel("Date: *"));
         panel.add(spinDate);
-        panel.add(new JLabel("Type:*"));
+        panel.add(new JLabel("Type: *"));
         panel.add(cboType);
-        panel.add(new JLabel("Category:*"));
+        panel.add(new JLabel("Category: *"));
         panel.add(txtCategory);
-        panel.add(new JLabel("Amount (₱):*"));
+        panel.add(new JLabel("Amount (₱): *"));
         panel.add(txtAmount);
         panel.add(new JLabel("Description:"));
         panel.add(new JScrollPane(txtDesc));
-        panel.add(new JLabel("Payment Method:*"));
+        panel.add(new JLabel("Payment Method: *"));
         panel.add(cboMethod);
         panel.add(new JLabel("Payee/Payer:"));
         panel.add(txtPayeePayer);

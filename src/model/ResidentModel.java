@@ -64,75 +64,136 @@ public class ResidentModel {
     }
 
     public boolean create() {
+        // Validate input
+        if (this.firstName == null || this.firstName.trim().isEmpty()) {
+            util.Logger.logError("ResidentModel", "Cannot create resident with empty first name", null);
+            return false;
+        }
+        if (this.lastName == null || this.lastName.trim().isEmpty()) {
+            util.Logger.logError("ResidentModel", "Cannot create resident with empty last name", null);
+            return false;
+        }
+        if (this.birthDate == null) {
+            util.Logger.logError("ResidentModel", "Cannot create resident with null birth date", null);
+            return false;
+        }
+        
         // Auto-calculate age from birthdate
         calculateAndSetAge();
         
         String sql = "INSERT INTO residents (household_id, first_name, middle_name, last_name, suffix, birth_date, age, gender, contact_no, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (Connection conn = DbConnection.getConnection(); 
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             // Handle nullable household_id
             if (this.householdId == null) {
                 ps.setNull(1, Types.INTEGER);
             } else {
                 ps.setInt(1, this.householdId);
             }
-            ps.setString(2, this.firstName);
-            ps.setString(3, this.middleName);
-            ps.setString(4, this.lastName);
-            ps.setString(5, this.suffix);
+            ps.setString(2, this.firstName.trim());
+            ps.setString(3, this.middleName != null ? this.middleName.trim() : "");
+            ps.setString(4, this.lastName.trim());
+            ps.setString(5, this.suffix != null ? this.suffix.trim() : "");
             ps.setDate(6, this.birthDate);
             ps.setInt(7, this.age);
             ps.setString(8, this.gender);
-            ps.setString(9, this.contactNo);
-            ps.setString(10, this.email);
+            ps.setString(9, this.contactNo != null ? this.contactNo.trim() : "");
+            ps.setString(10, this.email != null ? this.email.trim() : "");
+            
             int rows = ps.executeUpdate();
             if (rows > 0) {
                 try (ResultSet rs = ps.getGeneratedKeys()) {
-                    if (rs.next()) this.residentId = rs.getInt(1);
+                    if (rs.next()) {
+                        this.residentId = rs.getInt(1);
+                        util.Logger.logCRUDOperation("CREATE", "Resident", String.valueOf(this.residentId), 
+                            String.format("%s %s, Age: %d", this.firstName, this.lastName, this.age));
+                    }
                 }
                 return true;
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            util.Logger.logError("ResidentModel", "Error creating resident", e);
         }
         return false;
     }
 
     public boolean update() {
+        // Validate input
+        if (this.residentId <= 0) {
+            util.Logger.logError("ResidentModel", "Cannot update resident with invalid ID", null);
+            return false;
+        }
+        if (this.firstName == null || this.firstName.trim().isEmpty()) {
+            util.Logger.logError("ResidentModel", "Cannot update resident with empty first name", null);
+            return false;
+        }
+        if (this.lastName == null || this.lastName.trim().isEmpty()) {
+            util.Logger.logError("ResidentModel", "Cannot update resident with empty last name", null);
+            return false;
+        }
+        if (this.birthDate == null) {
+            util.Logger.logError("ResidentModel", "Cannot update resident with null birth date", null);
+            return false;
+        }
+        
         // Auto-calculate age from birthdate
         calculateAndSetAge();
         
         String sql = "UPDATE residents SET household_id=?, first_name=?, middle_name=?, last_name=?, suffix=?, birth_date=?, age=?, gender=?, contact_no=?, email=? WHERE resident_id=?";
-        try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DbConnection.getConnection(); 
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             // Handle nullable household_id
             if (this.householdId == null) {
                 ps.setNull(1, Types.INTEGER);
             } else {
                 ps.setInt(1, this.householdId);
             }
-            ps.setString(2, this.firstName);
-            ps.setString(3, this.middleName);
-            ps.setString(4, this.lastName);
-            ps.setString(5, this.suffix);
+            ps.setString(2, this.firstName.trim());
+            ps.setString(3, this.middleName != null ? this.middleName.trim() : "");
+            ps.setString(4, this.lastName.trim());
+            ps.setString(5, this.suffix != null ? this.suffix.trim() : "");
             ps.setDate(6, this.birthDate);
             ps.setInt(7, this.age);
             ps.setString(8, this.gender);
-            ps.setString(9, this.contactNo);
-            ps.setString(10, this.email);
+            ps.setString(9, this.contactNo != null ? this.contactNo.trim() : "");
+            ps.setString(10, this.email != null ? this.email.trim() : "");
             ps.setInt(11, this.residentId);
-            return ps.executeUpdate() > 0;
+            
+            int result = ps.executeUpdate();
+            if (result > 0) {
+                util.Logger.logCRUDOperation("UPDATE", "Resident", String.valueOf(this.residentId), 
+                    String.format("%s %s, Age: %d", this.firstName, this.lastName, this.age));
+                return true;
+            }
+            return false;
         } catch (SQLException e) {
-            e.printStackTrace();
+            util.Logger.logError("ResidentModel", "Error updating resident", e);
         }
         return false;
     }
 
     public boolean delete() {
+        if (this.residentId <= 0) {
+            util.Logger.logError("ResidentModel", "Cannot delete resident with invalid ID", null);
+            return false;
+        }
+        
         String sql = "DELETE FROM residents WHERE resident_id=?";
-        try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DbConnection.getConnection(); 
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, this.residentId);
-            return ps.executeUpdate() > 0;
+            int result = ps.executeUpdate();
+            
+            if (result > 0) {
+                util.Logger.logCRUDOperation("DELETE", "Resident", String.valueOf(this.residentId), 
+                    String.format("%s %s", this.firstName, this.lastName));
+                return true;
+            } else {
+                util.Logger.logError("ResidentModel", "No resident found with ID: " + this.residentId, null);
+                return false;
+            }
         } catch (SQLException e) {
-            e.printStackTrace();
+            util.Logger.logError("ResidentModel", "Error deleting resident", e);
         }
         return false;
     }

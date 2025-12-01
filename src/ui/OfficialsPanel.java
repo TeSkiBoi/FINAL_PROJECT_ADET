@@ -52,37 +52,40 @@ public class OfficialsPanel extends JPanel {
         txtOfficialId.setBackground(Color.LIGHT_GRAY);
         inputPanel.add(txtOfficialId);
 
-        // Position field
-        JLabel lblPosition = new JLabel("Position:");
+        // Position field - REQUIRED
+        JLabel lblPosition = new JLabel("Position: *");
         lblPosition.setFont(new Font("Arial", Font.BOLD, 12));
+        lblPosition.setForeground(Color.RED);
         inputPanel.add(lblPosition);
         txtPosition = new JTextField();
         inputPanel.add(txtPosition);
 
-        // Full Name field
+        // Full Name field - Optional (can be null in DB)
         JLabel lblFullname = new JLabel("Full Name:");
         lblFullname.setFont(new Font("Arial", Font.BOLD, 12));
         inputPanel.add(lblFullname);
         txtFullname = new JTextField();
         inputPanel.add(txtFullname);
 
-        // Image Path field
+        // Image Path field - Optional
         JLabel lblImage = new JLabel("Image Path:");
         lblImage.setFont(new Font("Arial", Font.BOLD, 12));
         inputPanel.add(lblImage);
         txtImage = new JTextField();
         inputPanel.add(txtImage);
 
-        // Display Order field
-        JLabel lblOrder = new JLabel("Display Order:");
+        // Display Order field - REQUIRED
+        JLabel lblOrder = new JLabel("Display Order: *");
         lblOrder.setFont(new Font("Arial", Font.BOLD, 12));
+        lblOrder.setForeground(Color.RED);
         inputPanel.add(lblOrder);
         txtOrder = new JTextField();
         inputPanel.add(txtOrder);
 
-        // Active field
-        JLabel lblActive = new JLabel("Active:");
+        // Active field - REQUIRED
+        JLabel lblActive = new JLabel("Active: *");
         lblActive.setFont(new Font("Arial", Font.BOLD, 12));
+        lblActive.setForeground(Color.RED);
         inputPanel.add(lblActive);
         cboActive = new JComboBox<>(new String[]{"Yes", "No"});
         inputPanel.add(cboActive);

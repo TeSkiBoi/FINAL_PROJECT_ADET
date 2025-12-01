@@ -113,25 +113,68 @@ public class ProjectModel {
                                      Date startDate, Date endDate, String proponent, 
                                      double totalBudget, double budgetUtilized, 
                                      int progressPercentage, String remarks) throws SQLException {
+        // Validate input
+        if (projectName == null || projectName.trim().isEmpty()) {
+            util.Logger.logError("ProjectModel", "Cannot add project with empty name", null);
+            throw new SQLException("Project name is required");
+        }
+        if (proponent == null || proponent.trim().isEmpty()) {
+            util.Logger.logError("ProjectModel", "Cannot add project with empty proponent", null);
+            throw new SQLException("Proponent is required");
+        }
+        if (startDate == null) {
+            util.Logger.logError("ProjectModel", "Cannot add project with null start date", null);
+            throw new SQLException("Start date is required");
+        }
+        if (totalBudget < 0) {
+            util.Logger.logError("ProjectModel", "Cannot add project with negative budget", null);
+            throw new SQLException("Total budget cannot be negative");
+        }
+        if (budgetUtilized < 0 || budgetUtilized > totalBudget) {
+            util.Logger.logError("ProjectModel", "Invalid budget utilized amount", null);
+            throw new SQLException("Budget utilized must be between 0 and total budget");
+        }
+        if (progressPercentage < 0 || progressPercentage > 100) {
+            util.Logger.logError("ProjectModel", "Invalid progress percentage", null);
+            throw new SQLException("Progress percentage must be between 0 and 100");
+        }
+        
         String sql = "INSERT INTO barangay_projects (project_name, project_description, project_status, " +
                     "start_date, end_date, proponent, total_budget, budget_utilized, progress_percentage, remarks) " +
                     "VALUES (?,?,?,?,?,?,?,?,?,?)";
         
         try (Connection conn = DbConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             
-            ps.setString(1, projectName);
-            ps.setString(2, projectDescription);
+            ps.setString(1, projectName.trim());
+            ps.setString(2, projectDescription != null ? projectDescription.trim() : "");
             ps.setString(3, projectStatus);
             ps.setDate(4, startDate);
             ps.setDate(5, endDate);
-            ps.setString(6, proponent);
+            ps.setString(6, proponent.trim());
             ps.setDouble(7, totalBudget);
             ps.setDouble(8, budgetUtilized);
             ps.setInt(9, progressPercentage);
-            ps.setString(10, remarks);
+            ps.setString(10, remarks != null ? remarks.trim() : "");
             
-            return ps.executeUpdate() > 0;
+            int result = ps.executeUpdate();
+            
+            if (result > 0) {
+                // Get generated project ID
+                ResultSet generatedKeys = ps.getGeneratedKeys();
+                String projectId = "";
+                if (generatedKeys.next()) {
+                    projectId = String.valueOf(generatedKeys.getInt(1));
+                }
+                util.Logger.logCRUDOperation("CREATE", "Project", projectId, 
+                    String.format("Name: %s, Proponent: %s, Budget: %.2f", projectName, proponent, totalBudget));
+                return true;
+            }
+            
+            return false;
+        } catch (SQLException e) {
+            util.Logger.logError("ProjectModel", "Error adding project: " + projectName, e);
+            throw e;
         }
     }
     
@@ -142,6 +185,32 @@ public class ProjectModel {
                                         String projectStatus, Date startDate, Date endDate, 
                                         String proponent, double totalBudget, 
                                         int progressPercentage, String remarks) throws SQLException {
+        // Validate input
+        if (projectId <= 0) {
+            util.Logger.logError("ProjectModel", "Invalid project ID: " + projectId, null);
+            throw new SQLException("Invalid project ID");
+        }
+        if (projectName == null || projectName.trim().isEmpty()) {
+            util.Logger.logError("ProjectModel", "Cannot update project with empty name", null);
+            throw new SQLException("Project name is required");
+        }
+        if (proponent == null || proponent.trim().isEmpty()) {
+            util.Logger.logError("ProjectModel", "Cannot update project with empty proponent", null);
+            throw new SQLException("Proponent is required");
+        }
+        if (startDate == null) {
+            util.Logger.logError("ProjectModel", "Cannot update project with null start date", null);
+            throw new SQLException("Start date is required");
+        }
+        if (totalBudget < 0) {
+            util.Logger.logError("ProjectModel", "Cannot update project with negative budget", null);
+            throw new SQLException("Total budget cannot be negative");
+        }
+        if (progressPercentage < 0 || progressPercentage > 100) {
+            util.Logger.logError("ProjectModel", "Invalid progress percentage", null);
+            throw new SQLException("Progress percentage must be between 0 and 100");
+        }
+        
         String sql = "UPDATE barangay_projects SET project_name=?, project_description=?, project_status=?, " +
                     "start_date=?, end_date=?, proponent=?, total_budget=?, progress_percentage=?, remarks=? " +
                     "WHERE project_id=?";
@@ -149,18 +218,29 @@ public class ProjectModel {
         try (Connection conn = DbConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             
-            ps.setString(1, projectName);
-            ps.setString(2, projectDescription);
+            ps.setString(1, projectName.trim());
+            ps.setString(2, projectDescription != null ? projectDescription.trim() : "");
             ps.setString(3, projectStatus);
             ps.setDate(4, startDate);
             ps.setDate(5, endDate);
-            ps.setString(6, proponent);
+            ps.setString(6, proponent.trim());
             ps.setDouble(7, totalBudget);
             ps.setInt(8, progressPercentage);
-            ps.setString(9, remarks);
+            ps.setString(9, remarks != null ? remarks.trim() : "");
             ps.setInt(10, projectId);
             
-            return ps.executeUpdate() > 0;
+            int result = ps.executeUpdate();
+            
+            if (result > 0) {
+                util.Logger.logCRUDOperation("UPDATE", "Project", String.valueOf(projectId), 
+                    String.format("Name: %s, Status: %s, Progress: %d%%", projectName, projectStatus, progressPercentage));
+                return true;
+            }
+            
+            return false;
+        } catch (SQLException e) {
+            util.Logger.logError("ProjectModel", "Error updating project: " + projectId, e);
+            throw e;
         }
     }
     
@@ -168,13 +248,29 @@ public class ProjectModel {
      * Delete project
      */
     public static boolean deleteProject(int projectId) throws SQLException {
+        if (projectId <= 0) {
+            util.Logger.logError("ProjectModel", "Invalid project ID for deletion: " + projectId, null);
+            throw new SQLException("Invalid project ID");
+        }
+        
         String sql = "DELETE FROM barangay_projects WHERE project_id = ?";
         
         try (Connection conn = DbConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             
             ps.setInt(1, projectId);
-            return ps.executeUpdate() > 0;
+            int result = ps.executeUpdate();
+            
+            if (result > 0) {
+                util.Logger.logCRUDOperation("DELETE", "Project", String.valueOf(projectId), "Successfully deleted");
+                return true;
+            } else {
+                util.Logger.logError("ProjectModel", "No project found with ID: " + projectId, null);
+                return false;
+            }
+        } catch (SQLException e) {
+            util.Logger.logError("ProjectModel", "Error deleting project: " + projectId, e);
+            throw e;
         }
     }
     

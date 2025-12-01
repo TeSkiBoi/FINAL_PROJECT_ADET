@@ -161,55 +161,148 @@ public class HouseholdModel {
     }
 
     public boolean create() {
+        // Validate input
+        if (this.familyNo <= 0) {
+            util.Logger.logError("HouseholdModel", "Cannot create household with invalid family number", null);
+            return false;
+        }
+        if (this.address == null || this.address.trim().isEmpty()) {
+            util.Logger.logError("HouseholdModel", "Cannot create household with empty address", null);
+            return false;
+        }
+        if (this.income < 0) {
+            util.Logger.logError("HouseholdModel", "Cannot create household with negative income", null);
+            return false;
+        }
+        
+        // Check for duplicate family number
+        try (Connection conn = DbConnection.getConnection()) {
+            PreparedStatement checkPs = conn.prepareStatement("SELECT COUNT(*) FROM households WHERE family_no = ?");
+            checkPs.setInt(1, this.familyNo);
+            ResultSet checkRs = checkPs.executeQuery();
+            
+            if (checkRs.next() && checkRs.getInt(1) > 0) {
+                util.Logger.logError("HouseholdModel", "Family number already exists: " + this.familyNo, null);
+                return false;
+            }
+        } catch (SQLException e) {
+            util.Logger.logError("HouseholdModel", "Error checking duplicate family number", e);
+            return false;
+        }
+        
         String sql = "INSERT INTO households (family_no, household_head_id, address, income) VALUES (?, ?, ?, ?)";
-        try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (Connection conn = DbConnection.getConnection(); 
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, this.familyNo);
             if (this.householdHeadId == null) {
                 ps.setNull(2, Types.INTEGER);
             } else {
                 ps.setInt(2, this.householdHeadId);
             }
-            ps.setString(3, this.address);
+            ps.setString(3, this.address.trim());
             ps.setDouble(4, this.income);
+            
             int rows = ps.executeUpdate();
             if (rows > 0) {
                 try (ResultSet rs = ps.getGeneratedKeys()) {
-                    if (rs.next()) this.householdId = rs.getInt(1);
+                    if (rs.next()) {
+                        this.householdId = rs.getInt(1);
+                        util.Logger.logCRUDOperation("CREATE", "Household", String.valueOf(this.householdId), 
+                            String.format("Family No: %d, Address: %s", this.familyNo, this.address));
+                    }
                 }
                 return true;
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            util.Logger.logError("HouseholdModel", "Error creating household", e);
         }
         return false;
     }
 
     public boolean update() {
+        // Validate input
+        if (this.householdId <= 0) {
+            util.Logger.logError("HouseholdModel", "Cannot update household with invalid ID", null);
+            return false;
+        }
+        if (this.familyNo <= 0) {
+            util.Logger.logError("HouseholdModel", "Cannot update household with invalid family number", null);
+            return false;
+        }
+        if (this.address == null || this.address.trim().isEmpty()) {
+            util.Logger.logError("HouseholdModel", "Cannot update household with empty address", null);
+            return false;
+        }
+        if (this.income < 0) {
+            util.Logger.logError("HouseholdModel", "Cannot update household with negative income", null);
+            return false;
+        }
+        
+        // Check for duplicate family number (excluding current household)
+        try (Connection conn = DbConnection.getConnection()) {
+            PreparedStatement checkPs = conn.prepareStatement(
+                "SELECT COUNT(*) FROM households WHERE family_no = ? AND household_id != ?");
+            checkPs.setInt(1, this.familyNo);
+            checkPs.setInt(2, this.householdId);
+            ResultSet checkRs = checkPs.executeQuery();
+            
+            if (checkRs.next() && checkRs.getInt(1) > 0) {
+                util.Logger.logError("HouseholdModel", "Family number already exists: " + this.familyNo, null);
+                return false;
+            }
+        } catch (SQLException e) {
+            util.Logger.logError("HouseholdModel", "Error checking duplicate family number", e);
+            return false;
+        }
+        
         String sql = "UPDATE households SET family_no=?, household_head_id=?, address=?, income=? WHERE household_id=?";
-        try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DbConnection.getConnection(); 
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, this.familyNo);
             if (this.householdHeadId == null) {
                 ps.setNull(2, Types.INTEGER);
             } else {
                 ps.setInt(2, this.householdHeadId);
             }
-            ps.setString(3, this.address);
+            ps.setString(3, this.address.trim());
             ps.setDouble(4, this.income);
             ps.setInt(5, this.householdId);
-            return ps.executeUpdate() > 0;
+            
+            int result = ps.executeUpdate();
+            if (result > 0) {
+                util.Logger.logCRUDOperation("UPDATE", "Household", String.valueOf(this.householdId), 
+                    String.format("Family No: %d, Address: %s", this.familyNo, this.address));
+                return true;
+            }
+            return false;
         } catch (SQLException e) {
-            e.printStackTrace();
+            util.Logger.logError("HouseholdModel", "Error updating household", e);
         }
         return false;
     }
 
     public boolean delete() {
+        if (this.householdId <= 0) {
+            util.Logger.logError("HouseholdModel", "Cannot delete household with invalid ID", null);
+            return false;
+        }
+        
         String sql = "DELETE FROM households WHERE household_id=?";
-        try (Connection conn = DbConnection.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DbConnection.getConnection(); 
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, this.householdId);
-            return ps.executeUpdate() > 0;
+            int result = ps.executeUpdate();
+            
+            if (result > 0) {
+                util.Logger.logCRUDOperation("DELETE", "Household", String.valueOf(this.householdId), 
+                    "Family No: " + this.familyNo);
+                return true;
+            } else {
+                util.Logger.logError("HouseholdModel", "No household found with ID: " + this.householdId, null);
+                return false;
+            }
         } catch (SQLException e) {
-            e.printStackTrace();
+            util.Logger.logError("HouseholdModel", "Error deleting household", e);
         }
         return false;
     }

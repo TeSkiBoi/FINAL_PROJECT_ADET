@@ -132,23 +132,54 @@ public class FinancialModel {
     public static boolean addTransaction(Date transactionDate, String transactionType, String category,
                                          double amount, String description, String paymentMethod,
                                          String payeePayer, String referenceNumber) throws SQLException {
+        // Validate input
+        if (transactionDate == null) {
+            util.Logger.logError("FinancialModel", "Cannot add transaction with null date", null);
+            throw new SQLException("Transaction date is required");
+        }
+        if (category == null || category.trim().isEmpty()) {
+            util.Logger.logError("FinancialModel", "Cannot add transaction with empty category", null);
+            throw new SQLException("Category is required");
+        }
+        if (amount < 0) {
+            util.Logger.logError("FinancialModel", "Cannot add transaction with negative amount", null);
+            throw new SQLException("Amount cannot be negative");
+        }
+        
         String sql = "INSERT INTO financial_transactions (transaction_date, transaction_type, " +
                     "category, amount, description, payment_method, payee_payer, reference_number) " +
                     "VALUES (?,?,?,?,?,?,?,?)";
         
         try (Connection conn = DbConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             
             ps.setDate(1, transactionDate);
             ps.setString(2, transactionType);
-            ps.setString(3, category);
+            ps.setString(3, category.trim());
             ps.setDouble(4, amount);
-            ps.setString(5, description);
+            ps.setString(5, description != null ? description.trim() : "");
             ps.setString(6, paymentMethod);
-            ps.setString(7, payeePayer);
-            ps.setString(8, referenceNumber);
+            ps.setString(7, payeePayer != null ? payeePayer.trim() : "");
+            ps.setString(8, referenceNumber != null ? referenceNumber.trim() : "");
             
-            return ps.executeUpdate() > 0;
+            int result = ps.executeUpdate();
+            
+            if (result > 0) {
+                // Get generated transaction ID
+                ResultSet generatedKeys = ps.getGeneratedKeys();
+                String transactionId = "";
+                if (generatedKeys.next()) {
+                    transactionId = String.valueOf(generatedKeys.getInt(1));
+                }
+                util.Logger.logCRUDOperation("CREATE", "Financial Transaction", transactionId, 
+                    String.format("Type: %s, Category: %s, Amount: %.2f", transactionType, category, amount));
+                return true;
+            }
+            
+            return false;
+        } catch (SQLException e) {
+            util.Logger.logError("FinancialModel", "Error adding transaction", e);
+            throw e;
         }
     }
     
@@ -158,6 +189,24 @@ public class FinancialModel {
     public static boolean updateTransaction(int transactionId, Date transactionDate, String transactionType,
                                            String category, double amount, String description, 
                                            String paymentMethod, String payeePayer, String referenceNumber) throws SQLException {
+        // Validate input
+        if (transactionId <= 0) {
+            util.Logger.logError("FinancialModel", "Invalid transaction ID: " + transactionId, null);
+            throw new SQLException("Invalid transaction ID");
+        }
+        if (transactionDate == null) {
+            util.Logger.logError("FinancialModel", "Cannot update transaction with null date", null);
+            throw new SQLException("Transaction date is required");
+        }
+        if (category == null || category.trim().isEmpty()) {
+            util.Logger.logError("FinancialModel", "Cannot update transaction with empty category", null);
+            throw new SQLException("Category is required");
+        }
+        if (amount < 0) {
+            util.Logger.logError("FinancialModel", "Cannot update transaction with negative amount", null);
+            throw new SQLException("Amount cannot be negative");
+        }
+        
         String sql = "UPDATE financial_transactions SET transaction_date=?, transaction_type=?, " +
                     "category=?, amount=?, description=?, payment_method=?, payee_payer=?, reference_number=? " +
                     "WHERE transaction_id=?";
@@ -167,15 +216,26 @@ public class FinancialModel {
             
             ps.setDate(1, transactionDate);
             ps.setString(2, transactionType);
-            ps.setString(3, category);
+            ps.setString(3, category.trim());
             ps.setDouble(4, amount);
-            ps.setString(5, description);
+            ps.setString(5, description != null ? description.trim() : "");
             ps.setString(6, paymentMethod);
-            ps.setString(7, payeePayer);
-            ps.setString(8, referenceNumber);
+            ps.setString(7, payeePayer != null ? payeePayer.trim() : "");
+            ps.setString(8, referenceNumber != null ? referenceNumber.trim() : "");
             ps.setInt(9, transactionId);
             
-            return ps.executeUpdate() > 0;
+            int result = ps.executeUpdate();
+            
+            if (result > 0) {
+                util.Logger.logCRUDOperation("UPDATE", "Financial Transaction", String.valueOf(transactionId), 
+                    String.format("Type: %s, Category: %s, Amount: %.2f", transactionType, category, amount));
+                return true;
+            }
+            
+            return false;
+        } catch (SQLException e) {
+            util.Logger.logError("FinancialModel", "Error updating transaction: " + transactionId, e);
+            throw e;
         }
     }
     
@@ -183,13 +243,29 @@ public class FinancialModel {
      * Delete transaction
      */
     public static boolean deleteTransaction(int transactionId) throws SQLException {
+        if (transactionId <= 0) {
+            util.Logger.logError("FinancialModel", "Invalid transaction ID for deletion: " + transactionId, null);
+            throw new SQLException("Invalid transaction ID");
+        }
+        
         String sql = "DELETE FROM financial_transactions WHERE transaction_id = ?";
         
         try (Connection conn = DbConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             
             ps.setInt(1, transactionId);
-            return ps.executeUpdate() > 0;
+            int result = ps.executeUpdate();
+            
+            if (result > 0) {
+                util.Logger.logCRUDOperation("DELETE", "Financial Transaction", String.valueOf(transactionId), "Successfully deleted");
+                return true;
+            } else {
+                util.Logger.logError("FinancialModel", "No transaction found with ID: " + transactionId, null);
+                return false;
+            }
+        } catch (SQLException e) {
+            util.Logger.logError("FinancialModel", "Error deleting transaction: " + transactionId, e);
+            throw e;
         }
     }
 }

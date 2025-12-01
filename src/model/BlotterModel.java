@@ -133,29 +133,64 @@ public class BlotterModel {
      */
     public static boolean addIncident(String caseNumber, String type, Date date, Time time,
                                      String location, String complainant, String respondent, String status) {
+        // Validate input
+        if (caseNumber == null || caseNumber.trim().isEmpty()) {
+            util.Logger.logError("BlotterModel", "Cannot add incident with empty case number", null);
+            return false;
+        }
+        if (date == null) {
+            util.Logger.logError("BlotterModel", "Cannot add incident with null date", null);
+            return false;
+        }
+        if (time == null) {
+            util.Logger.logError("BlotterModel", "Cannot add incident with null time", null);
+            return false;
+        }
+        
         try (Connection conn = DbConnection.getConnection()) {
+            // Check for duplicate case number
+            String checkSql = "SELECT COUNT(*) FROM blotter_incidents WHERE case_number = ?";
+            PreparedStatement checkPs = conn.prepareStatement(checkSql);
+            checkPs.setString(1, caseNumber.trim());
+            ResultSet checkRs = checkPs.executeQuery();
+            
+            if (checkRs.next() && checkRs.getInt(1) > 0) {
+                util.Logger.logError("BlotterModel", "Case number already exists: " + caseNumber, null);
+                return false;
+            }
+            
             String sql = "INSERT INTO blotter_incidents (case_number, incident_type, incident_date, " +
                         "incident_time, incident_location, complainant_name, respondent_name, " +
                         "incident_description, incident_status) VALUES (?,?,?,?,?,?,?,?,?)";
             
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, caseNumber);
+            PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, caseNumber.trim());
             ps.setString(2, type);
             ps.setDate(3, date);
             ps.setTime(4, time);
-            ps.setString(5, location);
-            ps.setString(6, complainant);
-            ps.setString(7, respondent);
+            ps.setString(5, location != null ? location.trim() : "");
+            ps.setString(6, complainant != null ? complainant.trim() : "");
+            ps.setString(7, respondent != null ? respondent.trim() : "");
             ps.setString(8, "");
             ps.setString(9, status);
             
             int result = ps.executeUpdate();
-            util.Logger.logCRUDOperation("CREATE", "Incident", caseNumber, 
-                "Type: " + type + ", Location: " + location);
             
-            return result > 0;
+            if (result > 0) {
+                // Get generated incident ID
+                ResultSet generatedKeys = ps.getGeneratedKeys();
+                String incidentId = "";
+                if (generatedKeys.next()) {
+                    incidentId = String.valueOf(generatedKeys.getInt(1));
+                }
+                util.Logger.logCRUDOperation("CREATE", "Incident", incidentId, 
+                    "Case: " + caseNumber + ", Type: " + type + ", Location: " + location);
+                return true;
+            }
+            
+            return false;
         } catch (SQLException e) {
-            util.Logger.logError("BlotterModel", "Error adding incident", e);
+            util.Logger.logError("BlotterModel", "Error adding incident: " + caseNumber, e);
             return false;
         }
     }
@@ -176,29 +211,55 @@ public class BlotterModel {
     public static boolean updateIncident(int incidentId, String caseNumber, String type, Date date, 
                                         Time time, String location, String complainant, 
                                         String respondent, String status) {
+        // Validate input
+        if (caseNumber == null || caseNumber.trim().isEmpty()) {
+            util.Logger.logError("BlotterModel", "Cannot update incident with empty case number", null);
+            return false;
+        }
+        if (date == null || time == null) {
+            util.Logger.logError("BlotterModel", "Cannot update incident with null date/time", null);
+            return false;
+        }
+        
         try (Connection conn = DbConnection.getConnection()) {
+            // Check if another incident has this case number (excluding current incident)
+            String checkSql = "SELECT COUNT(*) FROM blotter_incidents WHERE case_number = ? AND incident_id != ?";
+            PreparedStatement checkPs = conn.prepareStatement(checkSql);
+            checkPs.setString(1, caseNumber.trim());
+            checkPs.setInt(2, incidentId);
+            ResultSet checkRs = checkPs.executeQuery();
+            
+            if (checkRs.next() && checkRs.getInt(1) > 0) {
+                util.Logger.logError("BlotterModel", "Case number already exists: " + caseNumber, null);
+                return false;
+            }
+            
             String sql = "UPDATE blotter_incidents SET case_number=?, incident_type=?, incident_date=?, " +
                         "incident_time=?, incident_location=?, complainant_name=?, respondent_name=?, " +
                         "incident_status=? WHERE incident_id=?";
             
             PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, caseNumber);
+            ps.setString(1, caseNumber.trim());
             ps.setString(2, type);
             ps.setDate(3, date);
             ps.setTime(4, time);
-            ps.setString(5, location);
-            ps.setString(6, complainant);
-            ps.setString(7, respondent);
+            ps.setString(5, location != null ? location.trim() : "");
+            ps.setString(6, complainant != null ? complainant.trim() : "");
+            ps.setString(7, respondent != null ? respondent.trim() : "");
             ps.setString(8, status);
             ps.setInt(9, incidentId);
             
             int result = ps.executeUpdate();
-            util.Logger.logCRUDOperation("UPDATE", "Incident", String.valueOf(incidentId), 
-                "Case: " + caseNumber);
             
-            return result > 0;
+            if (result > 0) {
+                util.Logger.logCRUDOperation("UPDATE", "Incident", String.valueOf(incidentId), 
+                    "Case: " + caseNumber + ", Type: " + type);
+                return true;
+            }
+            
+            return false;
         } catch (SQLException e) {
-            util.Logger.logError("BlotterModel", "Error updating incident", e);
+            util.Logger.logError("BlotterModel", "Error updating incident: " + incidentId, e);
             return false;
         }
     }
@@ -209,17 +270,27 @@ public class BlotterModel {
      * @return true if successful
      */
     public static boolean deleteIncident(int incidentId) {
+        if (incidentId <= 0) {
+            util.Logger.logError("BlotterModel", "Invalid incident ID for deletion: " + incidentId, null);
+            return false;
+        }
+        
         try (Connection conn = DbConnection.getConnection()) {
             String sql = "DELETE FROM blotter_incidents WHERE incident_id = ?";
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.setInt(1, incidentId);
             
             int result = ps.executeUpdate();
-            util.Logger.logCRUDOperation("DELETE", "Incident", String.valueOf(incidentId), "");
             
-            return result > 0;
+            if (result > 0) {
+                util.Logger.logCRUDOperation("DELETE", "Incident", String.valueOf(incidentId), "Successfully deleted");
+                return true;
+            } else {
+                util.Logger.logError("BlotterModel", "No incident found with ID: " + incidentId, null);
+                return false;
+            }
         } catch (SQLException e) {
-            util.Logger.logError("BlotterModel", "Error deleting incident", e);
+            util.Logger.logError("BlotterModel", "Error deleting incident: " + incidentId, e);
             return false;
         }
     }

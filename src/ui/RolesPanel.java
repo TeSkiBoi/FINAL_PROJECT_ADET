@@ -184,18 +184,23 @@ public class RolesPanel extends JPanel {
     }
 
     private void addRole() {
-        if (txtRoleName.getText().trim().isEmpty()) {
+        String roleName = txtRoleName.getText().trim();
+        
+        if (roleName.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Role name is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        boolean success = RoleModel.addRole(txtRoleName.getText().trim());
+        boolean success = RoleModel.addRole(roleName);
 
         if (success) {
             JOptionPane.showMessageDialog(this, "Role added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
             clearForm();
         } else {
-            JOptionPane.showMessageDialog(this, "Failed to add role!", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, 
+                "Failed to add role!\nPossible reasons:\n- Role name already exists\n- Database connection issue", 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -206,18 +211,22 @@ public class RolesPanel extends JPanel {
             return;
         }
 
-        if (txtRoleName.getText().trim().isEmpty()) {
+        String roleName = txtRoleName.getText().trim();
+        if (roleName.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Role name is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        boolean success = RoleModel.updateRole(txtRoleId.getText(), txtRoleName.getText().trim());
+        boolean success = RoleModel.updateRole(txtRoleId.getText(), roleName);
 
         if (success) {
             JOptionPane.showMessageDialog(this, "Role updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
             clearForm();
         } else {
-            JOptionPane.showMessageDialog(this, "Failed to update role!", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, 
+                "Failed to update role!\nPossible reasons:\n- Role name already exists\n- Database connection issue", 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
         }
     }
 

@@ -83,23 +83,71 @@ public class RoleModel {
     }
     
     /**
+     * Check if a role name already exists
+     * @param roleName The role name to check
+     * @return true if role name exists, false otherwise
+     */
+    public static boolean roleNameExists(String roleName) {
+        if (roleName == null || roleName.trim().isEmpty()) {
+            return false;
+        }
+        
+        try (Connection conn = DbConnection.getConnection()) {
+            String sql = "SELECT COUNT(*) FROM roles WHERE role_name = ?";
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setString(1, roleName.trim());
+            ResultSet rs = ps.executeQuery();
+            
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+        } catch (SQLException e) {
+            util.Logger.logError("RoleModel", "Error checking role name existence", e);
+        }
+        
+        return false;
+    }
+    
+    /**
      * Add new role
      * @param roleName Role name
      * @return true if successful
      */
     public static boolean addRole(String roleName) {
+        // Validate input
+        if (roleName == null || roleName.trim().isEmpty()) {
+            util.Logger.logError("RoleModel", "Cannot add role with empty name", null);
+            return false;
+        }
+        
+        // Check for duplicate role name
+        if (roleNameExists(roleName)) {
+            util.Logger.logError("RoleModel", "Role name already exists: " + roleName, null);
+            return false;
+        }
+        
         try (Connection conn = DbConnection.getConnection()) {
+            // Insert new role
             String sql = "INSERT INTO roles (role_name) VALUES (?)";
-            
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, roleName);
+            PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, roleName.trim());
             
             int result = ps.executeUpdate();
-            util.Logger.logCRUDOperation("CREATE", "Role", roleName, "Role name: " + roleName);
             
-            return result > 0;
+            if (result > 0) {
+                // Get the generated role_id
+                ResultSet generatedKeys = ps.getGeneratedKeys();
+                String roleId = "";
+                if (generatedKeys.next()) {
+                    roleId = String.valueOf(generatedKeys.getInt(1));
+                }
+                util.Logger.logCRUDOperation("CREATE", "Role", roleId, "Role name: " + roleName);
+                return true;
+            }
+            
+            return false;
         } catch (SQLException e) {
-            util.Logger.logError("RoleModel", "Error adding role", e);
+            util.Logger.logError("RoleModel", "Error adding role: " + roleName, e);
             return false;
         }
     }
@@ -111,17 +159,44 @@ public class RoleModel {
      * @return true if successful
      */
     public static boolean updateRole(String roleId, String roleName) {
+        // Validate input
+        if (roleId == null || roleId.trim().isEmpty()) {
+            util.Logger.logError("RoleModel", "Cannot update role with empty ID", null);
+            return false;
+        }
+        
+        if (roleName == null || roleName.trim().isEmpty()) {
+            util.Logger.logError("RoleModel", "Cannot update role with empty name", null);
+            return false;
+        }
+        
         try (Connection conn = DbConnection.getConnection()) {
-            String sql = "UPDATE roles SET role_name=? WHERE role_id=?";
+            // Check if another role already has this name (excluding current role)
+            String checkSql = "SELECT COUNT(*) FROM roles WHERE role_name = ? AND role_id != ?";
+            PreparedStatement checkPs = conn.prepareStatement(checkSql);
+            checkPs.setString(1, roleName.trim());
+            checkPs.setString(2, roleId);
+            ResultSet checkRs = checkPs.executeQuery();
             
+            if (checkRs.next() && checkRs.getInt(1) > 0) {
+                util.Logger.logError("RoleModel", "Role name already exists: " + roleName, null);
+                return false;
+            }
+            
+            // Update role
+            String sql = "UPDATE roles SET role_name=? WHERE role_id=?";
             PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, roleName);
+            ps.setString(1, roleName.trim());
             ps.setString(2, roleId);
             
             int result = ps.executeUpdate();
-            util.Logger.logCRUDOperation("UPDATE", "Role", roleId, roleName);
             
-            return result > 0;
+            if (result > 0) {
+                util.Logger.logCRUDOperation("UPDATE", "Role", roleId, "Role name: " + roleName);
+                return true;
+            }
+            
+            return false;
         } catch (SQLException e) {
             util.Logger.logError("RoleModel", "Error updating role", e);
             return false;

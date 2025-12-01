@@ -190,11 +190,11 @@ public class HouseholdPanel extends JPanel {
         JTextField txtAddress = new JTextField();
         JTextField txtIncome = new JTextField("0");
 
-        panel.add(new JLabel("Family No:"));
+        panel.add(new JLabel("Family No: *"));
         panel.add(txtFamilyNo);
-        panel.add(new JLabel("Address:"));
+        panel.add(new JLabel("Address: *"));
         panel.add(txtAddress);
-        panel.add(new JLabel("Income:"));
+        panel.add(new JLabel("Income: *"));
         panel.add(txtIncome);
 
         if (isEdit) {
@@ -472,19 +472,19 @@ public class HouseholdPanel extends JPanel {
         int initialAge = ResidentModel.calculateAge(initialBirthDate);
         txtAge.setText(String.valueOf(initialAge));
 
-        panel.add(new JLabel("First Name:*"));
+        panel.add(new JLabel("First Name: *"));
         panel.add(txtFirst);
         panel.add(new JLabel("Middle Name:"));
         panel.add(txtMiddle);
-        panel.add(new JLabel("Last Name:*"));
+        panel.add(new JLabel("Last Name: *"));
         panel.add(txtLast);
         panel.add(new JLabel("Suffix:"));
         panel.add(cboSuffix);
-        panel.add(new JLabel("Birthdate:*"));
+        panel.add(new JLabel("Birthdate: *"));
         panel.add(spinBirth);
-        panel.add(new JLabel("Age (Auto):*"));
+        panel.add(new JLabel("Age (Auto): *"));
         panel.add(txtAge);
-        panel.add(new JLabel("Gender:*"));
+        panel.add(new JLabel("Gender: *"));
         panel.add(cboGender);
         panel.add(new JLabel("Contact No:"));
         panel.add(txtContact);
