@@ -198,7 +198,11 @@ public class UserModel {
      * Add new user with password hashing
      */
     public static boolean addUser(String username, String password, String fullname, String email, String roleName, String status) {
+        System.out.println("DEBUG [UserModel.addUser()]: Starting addUser - username=" + username + ", roleName=" + roleName);
+        
         try (Connection conn = DbConnection.getConnection()) {
+            System.out.println("DEBUG [UserModel.addUser()]: Connection obtained");
+            
             // Get role_id from role_name
             String roleId = null;
             PreparedStatement psRole = conn.prepareStatement("SELECT role_id FROM roles WHERE role_name = ?");
@@ -206,19 +210,27 @@ public class UserModel {
             ResultSet rsRole = psRole.executeQuery();
             if (rsRole.next()) {
                 roleId = rsRole.getString("role_id");
+                System.out.println("DEBUG [UserModel.addUser()]: Found role_id: " + roleId + " for role: " + roleName);
+            } else {
+                System.out.println("DEBUG [UserModel.addUser()]: FAILURE - Role not found: " + roleName);
             }
             
             if (roleId == null) {
+                System.out.println("DEBUG [UserModel.addUser()]: FAILURE - roleId is null, returning false");
                 util.Logger.logError("UserModel", "Role not found: " + roleName, null);
                 return false;
             }
             
+            System.out.println("DEBUG [UserModel.addUser()]: Generating salt and hashing password...");
             // Generate salt and hash password
             String salt = PasswordHashing.generateSalt();
             String hashedPassword = PasswordHashing.hashPassword(password, salt);
+            System.out.println("DEBUG [UserModel.addUser()]: Password hashed successfully");
             
             String sql = "INSERT INTO users (username, hashed_password, salt, fullname, email, role_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)";
-            PreparedStatement ps = conn.prepareStatement(sql);
+            System.out.println("DEBUG [UserModel.addUser()]: SQL: " + sql);
+            
+            PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, username);
             ps.setString(2, hashedPassword);
             ps.setString(3, salt);
@@ -227,13 +239,43 @@ public class UserModel {
             ps.setString(6, roleId);
             ps.setString(7, status);
             
+            System.out.println("DEBUG [UserModel.addUser()]: Executing insert...");
             int result = ps.executeUpdate();
-            util.Logger.logCRUDOperation("CREATE", "User", username, 
-                "Role: " + roleName + ", Email: " + email);
+            System.out.println("DEBUG [UserModel.addUser()]: Rows affected: " + result);
             
-            return result > 0;
-        } catch (SQLException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-            util.Logger.logError("UserModel", "Error adding user", e);
+            if (result > 0) {
+                System.out.println("DEBUG [UserModel.addUser()]: SUCCESS - User added");
+                try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        String userId = generatedKeys.getString(1);
+                        System.out.println("DEBUG [UserModel.addUser()]: Generated user_id: " + userId);
+                    }
+                }
+                util.Logger.logCRUDOperation("CREATE", "User", username, 
+                    "Role: " + roleName + ", Email: " + email);
+                System.out.println("✓ SUCCESS: User added successfully! Username: " + username + ", Role: " + roleName);
+                return true;
+            } else {
+                System.out.println("DEBUG [UserModel.addUser()]: FAILURE - No rows affected");
+                return false;
+            }
+        } catch (SQLException e) {
+            System.out.println("DEBUG [UserModel.addUser()]: EXCEPTION - SQLException");
+            System.out.println("DEBUG [UserModel.addUser()]: Message: " + e.getMessage());
+            System.out.println("DEBUG [UserModel.addUser()]: SQLState: " + e.getSQLState());
+            System.out.println("DEBUG [UserModel.addUser()]: ErrorCode: " + e.getErrorCode());
+            util.Logger.logError("UserModel", "Database error adding user: " + username, e);
+            System.err.println("SQL Error adding user '" + username + "': " + e.getMessage());
+            System.err.println("SQL State: " + e.getSQLState() + ", Error Code: " + e.getErrorCode());
+            System.err.println("Details - Username: " + username + ", Role: " + roleName + ", Email: " + (email != null ? email : "N/A"));
+            e.printStackTrace();
+            return false;
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            System.out.println("DEBUG [UserModel.addUser()]: EXCEPTION - Password hashing error");
+            System.out.println("DEBUG [UserModel.addUser()]: Message: " + e.getMessage());
+            util.Logger.logError("UserModel", "Password hashing error for user: " + username, e);
+            System.err.println("Password hashing error for user '" + username + "': " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
@@ -288,9 +330,21 @@ public class UserModel {
             int result = ps.executeUpdate();
             util.Logger.logCRUDOperation("UPDATE", "User", userId, username);
             
+            if (result > 0) {
+                System.out.println("✓ SUCCESS: User updated successfully! Username: " + username + ", ID: " + userId);
+            }
+            
             return result > 0;
-        } catch (SQLException | NoSuchAlgorithmException | InvalidKeySpecException e) {
-            util.Logger.logError("UserModel", "Error updating user", e);
+        } catch (SQLException e) {
+            util.Logger.logError("UserModel", "Database error updating user: " + userId, e);
+            System.err.println("SQL Error updating user ID '" + userId + "': " + e.getMessage());
+            System.err.println("SQL State: " + e.getSQLState() + ", Error Code: " + e.getErrorCode());
+            e.printStackTrace();
+            return false;
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            util.Logger.logError("UserModel", "Password hashing error updating user: " + userId, e);
+            System.err.println("Password hashing error: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
@@ -309,7 +363,10 @@ public class UserModel {
             
             return result > 0;
         } catch (SQLException e) {
-            util.Logger.logError("UserModel", "Error deleting user", e);
+            util.Logger.logError("UserModel", "Database error deleting user: " + userId, e);
+            System.err.println("SQL Error deleting user ID '" + userId + "': " + e.getMessage());
+            System.err.println("SQL State: " + e.getSQLState() + ", Error Code: " + e.getErrorCode());
+            e.printStackTrace();
             return false;
         }
     }

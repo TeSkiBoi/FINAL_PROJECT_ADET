@@ -114,25 +114,37 @@ public class RoleModel {
      * @return true if successful
      */
     public static boolean addRole(String roleName) {
+        System.out.println("DEBUG [RoleModel.addRole()]: Starting - roleName=" + roleName);
+        
         // Validate input
         if (roleName == null || roleName.trim().isEmpty()) {
+            System.out.println("DEBUG [RoleModel.addRole()]: VALIDATION FAILED - Empty role name");
             util.Logger.logError("RoleModel", "Cannot add role with empty name", null);
             return false;
         }
         
+        System.out.println("DEBUG [RoleModel.addRole()]: Checking for duplicate role name");
+        
         // Check for duplicate role name
         if (roleNameExists(roleName)) {
+            System.out.println("DEBUG [RoleModel.addRole()]: DUPLICATE FOUND - Role name exists: " + roleName);
             util.Logger.logError("RoleModel", "Role name already exists: " + roleName, null);
             return false;
         }
         
+        System.out.println("DEBUG [RoleModel.addRole()]: No duplicate, proceeding with insert");
+        
         try (Connection conn = DbConnection.getConnection()) {
             // Insert new role
             String sql = "INSERT INTO roles (role_name) VALUES (?)";
+            System.out.println("DEBUG [RoleModel.addRole()]: SQL: " + sql);
+            
             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, roleName.trim());
             
+            System.out.println("DEBUG [RoleModel.addRole()]: Executing insert...");
             int result = ps.executeUpdate();
+            System.out.println("DEBUG [RoleModel.addRole()]: Rows affected: " + result);
             
             if (result > 0) {
                 // Get the generated role_id
@@ -140,14 +152,25 @@ public class RoleModel {
                 String roleId = "";
                 if (generatedKeys.next()) {
                     roleId = String.valueOf(generatedKeys.getInt(1));
+                    System.out.println("DEBUG [RoleModel.addRole()]: SUCCESS - Generated role_id: " + roleId);
+                } else {
+                    System.out.println("DEBUG [RoleModel.addRole()]: WARNING - Insert succeeded but no generated keys");
                 }
                 util.Logger.logCRUDOperation("CREATE", "Role", roleId, "Role name: " + roleName);
                 return true;
             }
             
+            System.out.println("DEBUG [RoleModel.addRole()]: FAILURE - No rows affected");
+            System.out.println(sql + " " + result);
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("RoleModel", "Error adding role: " + roleName, e);
+            System.out.println("DEBUG [RoleModel.addRole()]: EXCEPTION - SQLException");
+            System.out.println("DEBUG [RoleModel.addRole()]: Message: " + e.getMessage());
+            System.out.println("DEBUG [RoleModel.addRole()]: SQLState: " + e.getSQLState());
+            System.out.println("DEBUG [RoleModel.addRole()]: ErrorCode: " + e.getErrorCode());
+            util.Logger.logError("RoleModel", "Database error adding role: " + roleName, e);
+            System.err.println("SQL Error adding role '" + roleName + "': " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
@@ -198,7 +221,9 @@ public class RoleModel {
             
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("RoleModel", "Error updating role", e);
+            util.Logger.logError("RoleModel", "Database error updating role: " + roleId, e);
+            System.err.println("SQL Error updating role ID '" + roleId + "': " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
@@ -224,7 +249,9 @@ public class RoleModel {
             
             return result > 0;
         } catch (SQLException e) {
-            util.Logger.logError("RoleModel", "Error deleting role", e);
+            util.Logger.logError("RoleModel", "Database error deleting role: " + roleId, e);
+            System.err.println("SQL Error deleting role ID '" + roleId + "': " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }

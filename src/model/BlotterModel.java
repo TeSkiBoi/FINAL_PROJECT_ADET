@@ -133,21 +133,30 @@ public class BlotterModel {
      */
     public static boolean addIncident(String caseNumber, String type, Date date, Time time,
                                      String location, String complainant, String respondent, String status) {
+        System.out.println("DEBUG [BlotterModel.addIncident()]: Starting addIncident - caseNumber=" + caseNumber);
+        
         // Validate input
         if (caseNumber == null || caseNumber.trim().isEmpty()) {
+            System.out.println("DEBUG [BlotterModel.addIncident()]: VALIDATION FAILED - Empty case number");
             util.Logger.logError("BlotterModel", "Cannot add incident with empty case number", null);
             return false;
         }
         if (date == null) {
+            System.out.println("DEBUG [BlotterModel.addIncident()]: VALIDATION FAILED - Null date");
             util.Logger.logError("BlotterModel", "Cannot add incident with null date", null);
             return false;
         }
         if (time == null) {
+            System.out.println("DEBUG [BlotterModel.addIncident()]: VALIDATION FAILED - Null time");
             util.Logger.logError("BlotterModel", "Cannot add incident with null time", null);
             return false;
         }
         
+        System.out.println("DEBUG [BlotterModel.addIncident()]: Validation passed");
+        
         try (Connection conn = DbConnection.getConnection()) {
+            System.out.println("DEBUG [BlotterModel.addIncident()]: Checking for duplicate case number");
+            
             // Check for duplicate case number
             String checkSql = "SELECT COUNT(*) FROM blotter_incidents WHERE case_number = ?";
             PreparedStatement checkPs = conn.prepareStatement(checkSql);
@@ -155,13 +164,17 @@ public class BlotterModel {
             ResultSet checkRs = checkPs.executeQuery();
             
             if (checkRs.next() && checkRs.getInt(1) > 0) {
+                System.out.println("DEBUG [BlotterModel.addIncident()]: DUPLICATE FOUND - Case number exists: " + caseNumber);
                 util.Logger.logError("BlotterModel", "Case number already exists: " + caseNumber, null);
                 return false;
             }
             
+            System.out.println("DEBUG [BlotterModel.addIncident()]: No duplicate, proceeding with insert");
+            
             String sql = "INSERT INTO blotter_incidents (case_number, incident_type, incident_date, " +
                         "incident_time, incident_location, complainant_name, respondent_name, " +
                         "incident_description, incident_status) VALUES (?,?,?,?,?,?,?,?,?)";
+            System.out.println("DEBUG [BlotterModel.addIncident()]: SQL: " + sql);
             
             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, caseNumber.trim());
@@ -174,7 +187,9 @@ public class BlotterModel {
             ps.setString(8, "");
             ps.setString(9, status);
             
+            System.out.println("DEBUG [BlotterModel.addIncident()]: Executing insert...");
             int result = ps.executeUpdate();
+            System.out.println("DEBUG [BlotterModel.addIncident()]: Rows affected: " + result);
             
             if (result > 0) {
                 // Get generated incident ID
@@ -182,15 +197,26 @@ public class BlotterModel {
                 String incidentId = "";
                 if (generatedKeys.next()) {
                     incidentId = String.valueOf(generatedKeys.getInt(1));
+                    System.out.println("DEBUG [BlotterModel.addIncident()]: SUCCESS - Generated incident_id: " + incidentId);
+                } else {
+                    System.out.println("DEBUG [BlotterModel.addIncident()]: WARNING - Insert succeeded but no generated keys");
                 }
                 util.Logger.logCRUDOperation("CREATE", "Incident", incidentId, 
                     "Case: " + caseNumber + ", Type: " + type + ", Location: " + location);
                 return true;
             }
             
+            System.out.println("DEBUG [BlotterModel.addIncident()]: FAILURE - No rows affected");
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("BlotterModel", "Error adding incident: " + caseNumber, e);
+            System.out.println("DEBUG [BlotterModel.addIncident()]: EXCEPTION - SQLException");
+            System.out.println("DEBUG [BlotterModel.addIncident()]: Message: " + e.getMessage());
+            System.out.println("DEBUG [BlotterModel.addIncident()]: SQLState: " + e.getSQLState());
+            System.out.println("DEBUG [BlotterModel.addIncident()]: ErrorCode: " + e.getErrorCode());
+            util.Logger.logError("BlotterModel", "Database error adding incident: " + caseNumber, e);
+            System.err.println("SQL Error adding blotter incident '" + caseNumber + "': " + e.getMessage());
+            System.err.println("Details - Type: " + type + ", Location: " + location);
+            e.printStackTrace();
             return false;
         }
     }
@@ -259,7 +285,9 @@ public class BlotterModel {
             
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("BlotterModel", "Error updating incident: " + incidentId, e);
+            util.Logger.logError("BlotterModel", "Database error updating incident: " + incidentId, e);
+            System.err.println("SQL Error updating incident ID '" + incidentId + "': " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
@@ -290,7 +318,9 @@ public class BlotterModel {
                 return false;
             }
         } catch (SQLException e) {
-            util.Logger.logError("BlotterModel", "Error deleting incident: " + incidentId, e);
+            util.Logger.logError("BlotterModel", "Database error deleting incident: " + incidentId, e);
+            System.err.println("SQL Error deleting incident ID '" + incidentId + "': " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }

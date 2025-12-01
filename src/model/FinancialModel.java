@@ -132,23 +132,31 @@ public class FinancialModel {
     public static boolean addTransaction(Date transactionDate, String transactionType, String category,
                                          double amount, String description, String paymentMethod,
                                          String payeePayer, String referenceNumber) throws SQLException {
+        System.out.println("DEBUG [FinancialModel.addTransaction()]: Starting - category=" + category + ", amount=" + amount);
+        
         // Validate input
         if (transactionDate == null) {
+            System.out.println("DEBUG [FinancialModel.addTransaction()]: VALIDATION FAILED - Null transaction date");
             util.Logger.logError("FinancialModel", "Cannot add transaction with null date", null);
             throw new SQLException("Transaction date is required");
         }
         if (category == null || category.trim().isEmpty()) {
+            System.out.println("DEBUG [FinancialModel.addTransaction()]: VALIDATION FAILED - Empty category");
             util.Logger.logError("FinancialModel", "Cannot add transaction with empty category", null);
             throw new SQLException("Category is required");
         }
         if (amount < 0) {
+            System.out.println("DEBUG [FinancialModel.addTransaction()]: VALIDATION FAILED - Negative amount: " + amount);
             util.Logger.logError("FinancialModel", "Cannot add transaction with negative amount", null);
             throw new SQLException("Amount cannot be negative");
         }
         
+        System.out.println("DEBUG [FinancialModel.addTransaction()]: Validation passed");
+        
         String sql = "INSERT INTO financial_transactions (transaction_date, transaction_type, " +
                     "category, amount, description, payment_method, payee_payer, reference_number) " +
                     "VALUES (?,?,?,?,?,?,?,?)";
+        System.out.println("DEBUG [FinancialModel.addTransaction()]: SQL: " + sql);
         
         try (Connection conn = DbConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -162,7 +170,9 @@ public class FinancialModel {
             ps.setString(7, payeePayer != null ? payeePayer.trim() : "");
             ps.setString(8, referenceNumber != null ? referenceNumber.trim() : "");
             
+            System.out.println("DEBUG [FinancialModel.addTransaction()]: Executing insert...");
             int result = ps.executeUpdate();
+            System.out.println("DEBUG [FinancialModel.addTransaction()]: Rows affected: " + result);
             
             if (result > 0) {
                 // Get generated transaction ID
@@ -170,15 +180,27 @@ public class FinancialModel {
                 String transactionId = "";
                 if (generatedKeys.next()) {
                     transactionId = String.valueOf(generatedKeys.getInt(1));
+                    System.out.println("DEBUG [FinancialModel.addTransaction()]: SUCCESS - Generated transaction_id: " + transactionId);
+                } else {
+                    System.out.println("DEBUG [FinancialModel.addTransaction()]: WARNING - Insert succeeded but no generated keys");
                 }
                 util.Logger.logCRUDOperation("CREATE", "Financial Transaction", transactionId, 
                     String.format("Type: %s, Category: %s, Amount: %.2f", transactionType, category, amount));
+                System.out.println("✓ SUCCESS: Financial transaction added successfully! Transaction ID: " + transactionId);
                 return true;
             }
             
+            System.out.println("DEBUG [FinancialModel.addTransaction()]: FAILURE - No rows affected");
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("FinancialModel", "Error adding transaction", e);
+            System.out.println("DEBUG [FinancialModel.addTransaction()]: EXCEPTION - SQLException");
+            System.out.println("DEBUG [FinancialModel.addTransaction()]: Message: " + e.getMessage());
+            System.out.println("DEBUG [FinancialModel.addTransaction()]: SQLState: " + e.getSQLState());
+            System.out.println("DEBUG [FinancialModel.addTransaction()]: ErrorCode: " + e.getErrorCode());
+            util.Logger.logError("FinancialModel", "Database error adding transaction", e);
+            System.err.println("SQL Error adding financial transaction: " + e.getMessage());
+            System.err.println("Details - Type: " + transactionType + ", Category: " + category + ", Amount: " + amount);
+            e.printStackTrace();
             throw e;
         }
     }
@@ -229,12 +251,15 @@ public class FinancialModel {
             if (result > 0) {
                 util.Logger.logCRUDOperation("UPDATE", "Financial Transaction", String.valueOf(transactionId), 
                     String.format("Type: %s, Category: %s, Amount: %.2f", transactionType, category, amount));
+                System.out.println("✓ SUCCESS: Financial transaction updated successfully! Transaction ID: " + transactionId);
                 return true;
             }
             
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("FinancialModel", "Error updating transaction: " + transactionId, e);
+            util.Logger.logError("FinancialModel", "Database error updating transaction: " + transactionId, e);
+            System.err.println("SQL Error updating transaction ID '" + transactionId + "': " + e.getMessage());
+            e.printStackTrace();
             throw e;
         }
     }
@@ -264,7 +289,9 @@ public class FinancialModel {
                 return false;
             }
         } catch (SQLException e) {
-            util.Logger.logError("FinancialModel", "Error deleting transaction: " + transactionId, e);
+            util.Logger.logError("FinancialModel", "Database error deleting transaction: " + transactionId, e);
+            System.err.println("SQL Error deleting transaction ID '" + transactionId + "': " + e.getMessage());
+            e.printStackTrace();
             throw e;
         }
     }

@@ -161,19 +161,26 @@ public class HouseholdModel {
     }
 
     public boolean create() {
+        System.out.println("DEBUG [HouseholdModel.create()]: Starting create - familyNo=" + familyNo + ", address=" + address);
+        
         // Validate input
         if (this.familyNo <= 0) {
+            System.out.println("DEBUG [HouseholdModel.create()]: VALIDATION FAILED - Invalid family number: " + this.familyNo);
             util.Logger.logError("HouseholdModel", "Cannot create household with invalid family number", null);
             return false;
         }
         if (this.address == null || this.address.trim().isEmpty()) {
+            System.out.println("DEBUG [HouseholdModel.create()]: VALIDATION FAILED - Empty address");
             util.Logger.logError("HouseholdModel", "Cannot create household with empty address", null);
             return false;
         }
         if (this.income < 0) {
+            System.out.println("DEBUG [HouseholdModel.create()]: VALIDATION FAILED - Negative income: " + this.income);
             util.Logger.logError("HouseholdModel", "Cannot create household with negative income", null);
             return false;
         }
+        
+        System.out.println("DEBUG [HouseholdModel.create()]: Validation passed, checking for duplicates");
         
         // Check for duplicate family number
         try (Connection conn = DbConnection.getConnection()) {
@@ -182,41 +189,67 @@ public class HouseholdModel {
             ResultSet checkRs = checkPs.executeQuery();
             
             if (checkRs.next() && checkRs.getInt(1) > 0) {
+                System.out.println("DEBUG [HouseholdModel.create()]: DUPLICATE FOUND - Family number already exists: " + this.familyNo);
                 util.Logger.logError("HouseholdModel", "Family number already exists: " + this.familyNo, null);
                 return false;
             }
+            System.out.println("DEBUG [HouseholdModel.create()]: No duplicate found, proceeding with insert");
         } catch (SQLException e) {
+            System.out.println("DEBUG [HouseholdModel.create()]: EXCEPTION during duplicate check - " + e.getMessage());
             util.Logger.logError("HouseholdModel", "Error checking duplicate family number", e);
             return false;
         }
         
         String sql = "INSERT INTO households (family_no, household_head_id, address, income) VALUES (?, ?, ?, ?)";
+        System.out.println("DEBUG [HouseholdModel.create()]: SQL: " + sql);
+        
         try (Connection conn = DbConnection.getConnection(); 
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            
+            System.out.println("DEBUG [HouseholdModel.create()]: Setting parameters...");
             ps.setInt(1, this.familyNo);
             if (this.householdHeadId == null) {
                 ps.setNull(2, Types.INTEGER);
+                System.out.println("DEBUG [HouseholdModel.create()]: Param 2 (household_head_id): NULL");
             } else {
                 ps.setInt(2, this.householdHeadId);
+                System.out.println("DEBUG [HouseholdModel.create()]: Param 2 (household_head_id): " + this.householdHeadId);
             }
             ps.setString(3, this.address.trim());
             ps.setDouble(4, this.income);
             
+            System.out.println("DEBUG [HouseholdModel.create()]: Executing insert...");
             int rows = ps.executeUpdate();
+            System.out.println("DEBUG [HouseholdModel.create()]: Rows affected: " + rows);
+            
             if (rows > 0) {
                 try (ResultSet rs = ps.getGeneratedKeys()) {
                     if (rs.next()) {
                         this.householdId = rs.getInt(1);
+                        System.out.println("DEBUG [HouseholdModel.create()]: SUCCESS - Generated household_id: " + this.householdId);
                         util.Logger.logCRUDOperation("CREATE", "Household", String.valueOf(this.householdId), 
                             String.format("Family No: %d, Address: %s", this.familyNo, this.address));
+                        System.out.println("✓ SUCCESS: Household added successfully! Family No: " + this.familyNo + ", ID: " + this.householdId);
+                    } else {
+                        System.out.println("DEBUG [HouseholdModel.create()]: WARNING - Insert succeeded but no generated keys");
                     }
                 }
                 return true;
+            } else {
+                System.out.println("DEBUG [HouseholdModel.create()]: FAILURE - No rows affected");
+                return false;
             }
         } catch (SQLException e) {
-            util.Logger.logError("HouseholdModel", "Error creating household", e);
+            System.out.println("DEBUG [HouseholdModel.create()]: EXCEPTION - SQLException");
+            System.out.println("DEBUG [HouseholdModel.create()]: Message: " + e.getMessage());
+            System.out.println("DEBUG [HouseholdModel.create()]: SQLState: " + e.getSQLState());
+            System.out.println("DEBUG [HouseholdModel.create()]: ErrorCode: " + e.getErrorCode());
+            util.Logger.logError("HouseholdModel", "Database error creating household", e);
+            System.err.println("SQL Error adding household: " + e.getMessage());
+            System.err.println("Details - Family No: " + this.familyNo + ", Address: " + (this.address != null ? this.address : "N/A"));
+            e.printStackTrace();
+            return false;
         }
-        return false;
     }
 
     public boolean update() {
@@ -272,11 +305,14 @@ public class HouseholdModel {
             if (result > 0) {
                 util.Logger.logCRUDOperation("UPDATE", "Household", String.valueOf(this.householdId), 
                     String.format("Family No: %d, Address: %s", this.familyNo, this.address));
+                System.out.println("✓ SUCCESS: Household updated successfully! Family No: " + this.familyNo + ", ID: " + this.householdId);
                 return true;
             }
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("HouseholdModel", "Error updating household", e);
+            util.Logger.logError("HouseholdModel", "Database error updating household: " + this.householdId, e);
+            System.err.println("SQL Error updating household ID '" + this.householdId + "': " + e.getMessage());
+            e.printStackTrace();
         }
         return false;
     }
@@ -302,7 +338,9 @@ public class HouseholdModel {
                 return false;
             }
         } catch (SQLException e) {
-            util.Logger.logError("HouseholdModel", "Error deleting household", e);
+            util.Logger.logError("HouseholdModel", "Database error deleting household: " + this.householdId, e);
+            System.err.println("SQL Error deleting household ID '" + this.householdId + "': " + e.getMessage());
+            e.printStackTrace();
         }
         return false;
     }

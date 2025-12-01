@@ -64,31 +64,46 @@ public class ResidentModel {
     }
 
     public boolean create() {
+        System.out.println("DEBUG [ResidentModel.create()]: Starting create - firstName=" + firstName + ", lastName=" + lastName);
+        
         // Validate input
         if (this.firstName == null || this.firstName.trim().isEmpty()) {
+            System.out.println("DEBUG [ResidentModel.create()]: VALIDATION FAILED - Empty first name");
             util.Logger.logError("ResidentModel", "Cannot create resident with empty first name", null);
             return false;
         }
         if (this.lastName == null || this.lastName.trim().isEmpty()) {
+            System.out.println("DEBUG [ResidentModel.create()]: VALIDATION FAILED - Empty last name");
             util.Logger.logError("ResidentModel", "Cannot create resident with empty last name", null);
             return false;
         }
         if (this.birthDate == null) {
+            System.out.println("DEBUG [ResidentModel.create()]: VALIDATION FAILED - Null birth date");
             util.Logger.logError("ResidentModel", "Cannot create resident with null birth date", null);
             return false;
         }
         
+        System.out.println("DEBUG [ResidentModel.create()]: Validation passed");
+        
         // Auto-calculate age from birthdate
         calculateAndSetAge();
+        System.out.println("DEBUG [ResidentModel.create()]: Age calculated: " + this.age);
         
         String sql = "INSERT INTO residents (household_id, first_name, middle_name, last_name, suffix, birth_date, age, gender, contact_no, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        System.out.println("DEBUG [ResidentModel.create()]: SQL: " + sql);
+        
         try (Connection conn = DbConnection.getConnection(); 
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            
+            System.out.println("DEBUG [ResidentModel.create()]: Connection obtained, preparing statement");
+            
             // Handle nullable household_id
             if (this.householdId == null) {
                 ps.setNull(1, Types.INTEGER);
+                System.out.println("DEBUG [ResidentModel.create()]: Param 1 (household_id): NULL");
             } else {
                 ps.setInt(1, this.householdId);
+                System.out.println("DEBUG [ResidentModel.create()]: Param 1 (household_id): " + this.householdId);
             }
             ps.setString(2, this.firstName.trim());
             ps.setString(3, this.middleName != null ? this.middleName.trim() : "");
@@ -100,21 +115,38 @@ public class ResidentModel {
             ps.setString(9, this.contactNo != null ? this.contactNo.trim() : "");
             ps.setString(10, this.email != null ? this.email.trim() : "");
             
+            System.out.println("DEBUG [ResidentModel.create()]: All parameters set, executing update...");
             int rows = ps.executeUpdate();
+            System.out.println("DEBUG [ResidentModel.create()]: Rows affected: " + rows);
+            
             if (rows > 0) {
                 try (ResultSet rs = ps.getGeneratedKeys()) {
                     if (rs.next()) {
                         this.residentId = rs.getInt(1);
+                        System.out.println("DEBUG [ResidentModel.create()]: SUCCESS - Generated resident_id: " + this.residentId);
                         util.Logger.logCRUDOperation("CREATE", "Resident", String.valueOf(this.residentId), 
                             String.format("%s %s, Age: %d", this.firstName, this.lastName, this.age));
+                        System.out.println("✓ SUCCESS: Resident added successfully! Name: " + this.firstName + " " + this.lastName + ", ID: " + this.residentId);
+                    } else {
+                        System.out.println("DEBUG [ResidentModel.create()]: WARNING - Insert succeeded but no generated keys");
                     }
                 }
                 return true;
+            } else {
+                System.out.println("DEBUG [ResidentModel.create()]: FAILURE - No rows affected by insert");
+                return false;
             }
         } catch (SQLException e) {
-            util.Logger.logError("ResidentModel", "Error creating resident", e);
+            System.out.println("DEBUG [ResidentModel.create()]: EXCEPTION - SQLException caught");
+            System.out.println("DEBUG [ResidentModel.create()]: Message: " + e.getMessage());
+            System.out.println("DEBUG [ResidentModel.create()]: SQLState: " + e.getSQLState());
+            System.out.println("DEBUG [ResidentModel.create()]: ErrorCode: " + e.getErrorCode());
+            util.Logger.logError("ResidentModel", "Database error creating resident", e);
+            System.err.println("SQL Error adding resident: " + e.getMessage());
+            System.err.println("Details - Name: " + (this.firstName != null ? this.firstName + " " + this.lastName : "N/A") + ", Age: " + this.age);
+            e.printStackTrace();
+            return false;
         }
-        return false;
     }
 
     public boolean update() {
@@ -163,11 +195,14 @@ public class ResidentModel {
             if (result > 0) {
                 util.Logger.logCRUDOperation("UPDATE", "Resident", String.valueOf(this.residentId), 
                     String.format("%s %s, Age: %d", this.firstName, this.lastName, this.age));
+                System.out.println("✓ SUCCESS: Resident updated successfully! Name: " + this.firstName + " " + this.lastName + ", ID: " + this.residentId);
                 return true;
             }
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("ResidentModel", "Error updating resident", e);
+            util.Logger.logError("ResidentModel", "Database error updating resident: " + this.residentId, e);
+            System.err.println("SQL Error updating resident ID '" + this.residentId + "': " + e.getMessage());
+            e.printStackTrace();
         }
         return false;
     }
@@ -193,7 +228,9 @@ public class ResidentModel {
                 return false;
             }
         } catch (SQLException e) {
-            util.Logger.logError("ResidentModel", "Error deleting resident", e);
+            util.Logger.logError("ResidentModel", "Database error deleting resident: " + this.residentId, e);
+            System.err.println("SQL Error deleting resident ID '" + this.residentId + "': " + e.getMessage());
+            e.printStackTrace();
         }
         return false;
     }

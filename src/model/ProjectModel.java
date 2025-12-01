@@ -113,35 +113,46 @@ public class ProjectModel {
                                      Date startDate, Date endDate, String proponent, 
                                      double totalBudget, double budgetUtilized, 
                                      int progressPercentage, String remarks) throws SQLException {
+        System.out.println("DEBUG [ProjectModel.addProject()]: Starting - projectName=" + projectName + ", proponent=" + proponent);
+        
         // Validate input
         if (projectName == null || projectName.trim().isEmpty()) {
+            System.out.println("DEBUG [ProjectModel.addProject()]: VALIDATION FAILED - Empty project name");
             util.Logger.logError("ProjectModel", "Cannot add project with empty name", null);
             throw new SQLException("Project name is required");
         }
         if (proponent == null || proponent.trim().isEmpty()) {
+            System.out.println("DEBUG [ProjectModel.addProject()]: VALIDATION FAILED - Empty proponent");
             util.Logger.logError("ProjectModel", "Cannot add project with empty proponent", null);
             throw new SQLException("Proponent is required");
         }
         if (startDate == null) {
+            System.out.println("DEBUG [ProjectModel.addProject()]: VALIDATION FAILED - Null start date");
             util.Logger.logError("ProjectModel", "Cannot add project with null start date", null);
             throw new SQLException("Start date is required");
         }
         if (totalBudget < 0) {
+            System.out.println("DEBUG [ProjectModel.addProject()]: VALIDATION FAILED - Negative budget: " + totalBudget);
             util.Logger.logError("ProjectModel", "Cannot add project with negative budget", null);
             throw new SQLException("Total budget cannot be negative");
         }
         if (budgetUtilized < 0 || budgetUtilized > totalBudget) {
+            System.out.println("DEBUG [ProjectModel.addProject()]: VALIDATION FAILED - Invalid budget utilized: " + budgetUtilized);
             util.Logger.logError("ProjectModel", "Invalid budget utilized amount", null);
             throw new SQLException("Budget utilized must be between 0 and total budget");
         }
         if (progressPercentage < 0 || progressPercentage > 100) {
+            System.out.println("DEBUG [ProjectModel.addProject()]: VALIDATION FAILED - Invalid progress: " + progressPercentage);
             util.Logger.logError("ProjectModel", "Invalid progress percentage", null);
             throw new SQLException("Progress percentage must be between 0 and 100");
         }
         
+        System.out.println("DEBUG [ProjectModel.addProject()]: Validation passed");
+        
         String sql = "INSERT INTO barangay_projects (project_name, project_description, project_status, " +
                     "start_date, end_date, proponent, total_budget, budget_utilized, progress_percentage, remarks) " +
                     "VALUES (?,?,?,?,?,?,?,?,?,?)";
+        System.out.println("DEBUG [ProjectModel.addProject()]: SQL: " + sql);
         
         try (Connection conn = DbConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -157,7 +168,9 @@ public class ProjectModel {
             ps.setInt(9, progressPercentage);
             ps.setString(10, remarks != null ? remarks.trim() : "");
             
+            System.out.println("DEBUG [ProjectModel.addProject()]: Executing insert...");
             int result = ps.executeUpdate();
+            System.out.println("DEBUG [ProjectModel.addProject()]: Rows affected: " + result);
             
             if (result > 0) {
                 // Get generated project ID
@@ -165,15 +178,25 @@ public class ProjectModel {
                 String projectId = "";
                 if (generatedKeys.next()) {
                     projectId = String.valueOf(generatedKeys.getInt(1));
+                    System.out.println("DEBUG [ProjectModel.addProject()]: SUCCESS - Generated project_id: " + projectId);
+                } else {
+                    System.out.println("DEBUG [ProjectModel.addProject()]: WARNING - Insert succeeded but no generated keys");
                 }
                 util.Logger.logCRUDOperation("CREATE", "Project", projectId, 
                     String.format("Name: %s, Proponent: %s, Budget: %.2f", projectName, proponent, totalBudget));
                 return true;
             }
             
+            System.out.println("DEBUG [ProjectModel.addProject()]: FAILURE - No rows affected");
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("ProjectModel", "Error adding project: " + projectName, e);
+            System.out.println("DEBUG [ProjectModel.addProject()]: EXCEPTION - SQLException");
+            System.out.println("DEBUG [ProjectModel.addProject()]: Message: " + e.getMessage());
+            System.out.println("DEBUG [ProjectModel.addProject()]: SQLState: " + e.getSQLState());
+            System.out.println("DEBUG [ProjectModel.addProject()]: ErrorCode: " + e.getErrorCode());
+            util.Logger.logError("ProjectModel", "Database error adding project: " + projectName, e);
+            System.err.println("SQL Error adding project '" + projectName + "': " + e.getMessage());
+            e.printStackTrace();
             throw e;
         }
     }
@@ -239,7 +262,9 @@ public class ProjectModel {
             
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("ProjectModel", "Error updating project: " + projectId, e);
+            util.Logger.logError("ProjectModel", "Database error updating project: " + projectId, e);
+            System.err.println("SQL Error updating project ID '" + projectId + "': " + e.getMessage());
+            e.printStackTrace();
             throw e;
         }
     }
@@ -269,7 +294,9 @@ public class ProjectModel {
                 return false;
             }
         } catch (SQLException e) {
-            util.Logger.logError("ProjectModel", "Error deleting project: " + projectId, e);
+            util.Logger.logError("ProjectModel", "Database error deleting project: " + projectId, e);
+            System.err.println("SQL Error deleting project ID '" + projectId + "': " + e.getMessage());
+            e.printStackTrace();
             throw e;
         }
     }

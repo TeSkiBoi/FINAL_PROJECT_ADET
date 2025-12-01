@@ -113,19 +113,26 @@ public class OfficialModel {
      */
     public static boolean addOfficial(String positionTitle, String fullName, String imagePath, 
                                      int displayOrder, String isActive) {
+        System.out.println("DEBUG [OfficialModel.addOfficial()]: Starting - positionTitle=" + positionTitle + ", fullName=" + fullName);
+        
         // Validate input
         if (positionTitle == null || positionTitle.trim().isEmpty()) {
+            System.out.println("DEBUG [OfficialModel.addOfficial()]: VALIDATION FAILED - Empty position title");
             util.Logger.logError("OfficialModel", "Cannot add official with empty position title", null);
             return false;
         }
         if (displayOrder < 0) {
+            System.out.println("DEBUG [OfficialModel.addOfficial()]: VALIDATION FAILED - Negative display order: " + displayOrder);
             util.Logger.logError("OfficialModel", "Cannot add official with negative display order", null);
             return false;
         }
         
+        System.out.println("DEBUG [OfficialModel.addOfficial()]: Validation passed");
+        
         try (Connection conn = DbConnection.getConnection()) {
             String sql = "INSERT INTO barangay_officials (position_title, full_name, image_path, " +
                         "display_order, is_active) VALUES (?,?,?,?,?)";
+            System.out.println("DEBUG [OfficialModel.addOfficial()]: SQL: " + sql);
             
             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, positionTitle.trim());
@@ -134,7 +141,9 @@ public class OfficialModel {
             ps.setInt(4, displayOrder);
             ps.setString(5, isActive);
             
+            System.out.println("DEBUG [OfficialModel.addOfficial()]: Executing insert...");
             int result = ps.executeUpdate();
+            System.out.println("DEBUG [OfficialModel.addOfficial()]: Rows affected: " + result);
             
             if (result > 0) {
                 // Get generated official ID
@@ -142,15 +151,26 @@ public class OfficialModel {
                 String officialId = "";
                 if (generatedKeys.next()) {
                     officialId = String.valueOf(generatedKeys.getInt(1));
+                    System.out.println("DEBUG [OfficialModel.addOfficial()]: SUCCESS - Generated id: " + officialId);
+                } else {
+                    System.out.println("DEBUG [OfficialModel.addOfficial()]: WARNING - Insert succeeded but no generated keys");
                 }
                 util.Logger.logCRUDOperation("CREATE", "Official", officialId, 
                     "Position: " + positionTitle + ", Name: " + fullName);
                 return true;
             }
             
+            System.out.println("DEBUG [OfficialModel.addOfficial()]: FAILURE - No rows affected");
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("OfficialModel", "Error adding official: " + positionTitle, e);
+            System.out.println("DEBUG [OfficialModel.addOfficial()]: EXCEPTION - SQLException");
+            System.out.println("DEBUG [OfficialModel.addOfficial()]: Message: " + e.getMessage());
+            System.out.println("DEBUG [OfficialModel.addOfficial()]: SQLState: " + e.getSQLState());
+            System.out.println("DEBUG [OfficialModel.addOfficial()]: ErrorCode: " + e.getErrorCode());
+            util.Logger.logError("OfficialModel", "Database error adding official: " + positionTitle, e);
+            System.err.println("SQL Error adding official '" + positionTitle + "': " + e.getMessage());
+            System.err.println("Details - Name: " + (fullName != null ? fullName : "N/A") + ", Display Order: " + displayOrder);
+            e.printStackTrace();
             return false;
         }
     }
@@ -203,7 +223,9 @@ public class OfficialModel {
             
             return false;
         } catch (SQLException e) {
-            util.Logger.logError("OfficialModel", "Error updating official: " + id, e);
+            util.Logger.logError("OfficialModel", "Database error updating official: " + id, e);
+            System.err.println("SQL Error updating official ID '" + id + "': " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
@@ -234,7 +256,9 @@ public class OfficialModel {
                 return false;
             }
         } catch (SQLException e) {
-            util.Logger.logError("OfficialModel", "Error deleting official: " + id, e);
+            util.Logger.logError("OfficialModel", "Database error deleting official: " + id, e);
+            System.err.println("SQL Error deleting official ID '" + id + "': " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
