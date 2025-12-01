@@ -4,72 +4,195 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
-import java.awt.event.*;
-import java.sql.*;
-import crypto.PasswordHashing;
-import db.DbConnection;
-import java.security.NoSuchAlgorithmException;
+import java.util.List;
 import theme.Theme;
-import java.security.spec.InvalidKeySpecException;
+import model.UserModel;
+import model.UserModel.UserDisplay;
 
 public class UsersPanel extends JPanel {
     private JTable table;
-    private DefaultTableModel model;
-    private JButton btnAdd, btnEdit, btnDelete, btnRefresh;
-    private JTextField txtSearch;
+    private DefaultTableModel tableModel;
+    private JTextField txtSearch, txtUserId, txtUsername, txtFullname, txtEmail;
+    private JPasswordField txtPassword;
+    private JComboBox<String> cboRole, cboStatus;
+    private JButton btnAdd, btnUpdate, btnDelete, btnClear, btnRefresh;
     private TableRowSorter<DefaultTableModel> sorter;
 
     public UsersPanel() {
-        setLayout(new BorderLayout(10,10));
+        setLayout(new BorderLayout(10, 10));
         
-        // Panel title
-        JLabel titleLabel = new JLabel("👤 User Management");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        titleLabel.setForeground(Theme.PRIMARY);
-        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        // Search Panel
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        searchPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Search User"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        searchPanel.setBackground(Theme.PRIMARY_LIGHT);
         
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        top.setBackground(Theme.PRIMARY_LIGHT);
-        
-        JLabel lblSearch = new JLabel("Search:");
         txtSearch = new JTextField(30);
-        btnAdd = new JButton("+ Add User");
-        btnEdit = new JButton("✏ Edit User");
-        btnDelete = new JButton("🗑 Delete User");
         btnRefresh = new JButton("🔄 Refresh");
-        style(btnAdd); style(btnEdit); style(btnDelete); style(btnRefresh);
         
-        top.add(lblSearch);
-        top.add(txtSearch);
-        top.add(btnRefresh); top.add(btnAdd); top.add(btnEdit); top.add(btnDelete);
+        styleButton(btnRefresh);
         
-        // Combine title and toolbar
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
-        headerPanel.add(titleLabel, BorderLayout.NORTH);
-        headerPanel.add(top, BorderLayout.CENTER);
-        add(headerPanel, BorderLayout.NORTH);
+        searchPanel.add(new JLabel("Search:"));
+        searchPanel.add(txtSearch);
+        searchPanel.add(btnRefresh);
+        
+        // Form Panel
+        JPanel formPanel = new JPanel(new BorderLayout(10, 10));
+        JPanel inputPanel = new JPanel(new GridLayout(6, 2, 10, 10));
+        inputPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("User Details"),
+            BorderFactory.createEmptyBorder(10, 10, 10, 10)));
 
-        model = new DefaultTableModel(new String[]{"User ID","Username","Fullname","Email","Role","Status"}, 0){ @Override public boolean isCellEditable(int r,int c){return false;} };
-        table = new JTable(model);
-        sorter = new TableRowSorter<>(model);
+        // User ID field (read-only)
+        JLabel lblUserId = new JLabel("User ID:");
+        lblUserId.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblUserId);
+        txtUserId = new JTextField();
+        txtUserId.setEditable(false);
+        txtUserId.setBackground(Color.LIGHT_GRAY);
+        inputPanel.add(txtUserId);
+
+        // Username field
+        JLabel lblUsername = new JLabel("Username:");
+        lblUsername.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblUsername);
+        txtUsername = new JTextField();
+        inputPanel.add(txtUsername);
+
+        // Password field
+        JLabel lblPassword = new JLabel("Password:");
+        lblPassword.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblPassword);
+        txtPassword = new JPasswordField();
+        inputPanel.add(txtPassword);
+
+        // Fullname field
+        JLabel lblFullname = new JLabel("Full Name:");
+        lblFullname.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblFullname);
+        txtFullname = new JTextField();
+        inputPanel.add(txtFullname);
+
+        // Email field
+        JLabel lblEmail = new JLabel("Email:");
+        lblEmail.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblEmail);
+        txtEmail = new JTextField();
+        inputPanel.add(txtEmail);
+
+        // Role dropdown
+        JLabel lblRole = new JLabel("Role:");
+        lblRole.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblRole);
+        cboRole = new JComboBox<>();
+        cboRole.setBackground(Color.WHITE);
+        loadRolesCombo();
+        inputPanel.add(cboRole);
+
+        // Status dropdown (hidden in form, added to button panel area instead)
+        cboStatus = new JComboBox<>(new String[]{"Active", "Inactive"});
+        cboStatus.setBackground(Color.WHITE);
+
+        // Buttons Panel
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        JLabel lblStatus = new JLabel("Status:");
+        lblStatus.setFont(new Font("Arial", Font.BOLD, 12));
+        btnPanel.add(lblStatus);
+        btnPanel.add(cboStatus);
+        btnPanel.add(Box.createHorizontalStrut(20));
+
+        btnAdd = new JButton("Add User");
+        btnUpdate = new JButton("Update");
+        btnDelete = new JButton("Delete");
+        btnClear = new JButton("Clear");
+
+        styleButton(btnAdd);
+        styleButton(btnUpdate);
+        styleButton(btnDelete);
+        styleButton(btnClear);
+
+        btnPanel.add(btnAdd);
+        btnPanel.add(btnUpdate);
+        btnPanel.add(btnDelete);
+        btnPanel.add(btnClear);
+
+        formPanel.add(inputPanel, BorderLayout.CENTER);
+        formPanel.add(btnPanel, BorderLayout.SOUTH);
+
+        // Top Panel (contains search and form)
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(searchPanel, BorderLayout.NORTH);
+        topPanel.add(formPanel, BorderLayout.CENTER);
+        
+        add(topPanel, BorderLayout.NORTH);
+
+        // Table
+        tableModel = new DefaultTableModel(
+            new Object[]{"User ID", "Username", "Fullname", "Email", "Role", "Status"}, 0) {
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        table = new JTable(tableModel);
+        sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.getTableHeader().setReorderingAllowed(false);
 
-        btnRefresh.addActionListener(e -> loadUsers());
-        btnAdd.addActionListener(e -> openUserDialog(null));
-        btnEdit.addActionListener(e -> { int r = table.getSelectedRow(); if (r==-1){ JOptionPane.showMessageDialog(this,"Select a user"); return;} openUserDialog((String)table.getValueAt(r,0)); });
-        btnDelete.addActionListener(e -> deleteUser());
+        // Table selection listener - populates form when row clicked
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && table.getSelectedRow() != -1) {
+                int row = table.getSelectedRow();
+                txtUserId.setText(tableModel.getValueAt(row, 0).toString());
+                txtUsername.setText(tableModel.getValueAt(row, 1).toString());
+                txtPassword.setText(""); // Don't show password
+                txtFullname.setText(tableModel.getValueAt(row, 2) != null ? tableModel.getValueAt(row, 2).toString() : "");
+                txtEmail.setText(tableModel.getValueAt(row, 3) != null ? tableModel.getValueAt(row, 3).toString() : "");
+                cboRole.setSelectedItem(tableModel.getValueAt(row, 4) != null ? tableModel.getValueAt(row, 4).toString() : "");
+                cboStatus.setSelectedItem(tableModel.getValueAt(row, 5) != null ? tableModel.getValueAt(row, 5).toString() : "Active");
+            }
+        });
         
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Users List"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        add(scrollPane, BorderLayout.CENTER);
+
+        // Event handlers
+        btnRefresh.addActionListener(e -> loadUsers());
+        btnAdd.addActionListener(e -> addUser());
+        btnUpdate.addActionListener(e -> updateUser());
+        btnDelete.addActionListener(e -> deleteUser());
+        btnClear.addActionListener(e -> clearForm());
+
         txtSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { search(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { search(); }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { search(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
+
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
+
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
         });
 
         loadUsers();
     }
-    
+
+    private void styleButton(JButton b) {
+        b.setBackground(Theme.PRIMARY);
+        b.setForeground(Color.WHITE);
+        b.setFocusPainted(false);
+        b.setBorderPainted(false);
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    }
+
     private void search() {
         String text = txtSearch.getText().trim();
         if (text.isEmpty()) {
@@ -79,158 +202,127 @@ public class UsersPanel extends JPanel {
         }
     }
 
-    private void style(JButton b){ b.setBackground(Theme.PRIMARY); b.setForeground(Color.WHITE); b.setFocusPainted(false); b.setBorderPainted(false); }
-
-    private void loadUsers(){
-        model.setRowCount(0);
-        try (Connection conn = DbConnection.getConnection()){
-            String sql = "SELECT u.user_id, u.username, u.fullname, u.email, r.role_name, u.status FROM users u LEFT JOIN roles r ON u.role_id = r.role_id ORDER BY u.user_id";
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery(sql);
-            boolean hasData = false;
-            while (rs.next()){
-                hasData = true;
-                model.addRow(new Object[]{
-                    rs.getString("user_id"),
-                    rs.getString("username"),
-                    rs.getString("fullname"),
-                    rs.getString("email"),
-                    rs.getString("role_name"),
-                    rs.getString("status")
-                });
-            }
-            if (!hasData) {
-                model.addRow(new Object[]{"", "No users found", "Click 'Add User' to create a new user", "", "", ""});
-            }
-        } catch (SQLException e){ JOptionPane.showMessageDialog(this, "Error loading users: "+e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE); }
+    private void loadRolesCombo() {
+        cboRole.removeAllItems();
+        List<String> roleNames = UserModel.getAllRoleNames();
+        for (String roleName : roleNames) {
+            cboRole.addItem(roleName);
+        }
     }
 
-    private void openUserDialog(String userId){
-        boolean isEdit = userId != null;
-        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), isEdit?"Edit User":"Add User", Dialog.ModalityType.APPLICATION_MODAL);
-        JPanel p = new JPanel(new GridLayout(0,2,8,8)); p.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
-        JTextField txtUserId = new JTextField(); txtUserId.setEnabled(false);
-        JTextField txtUsername = new JTextField();
-        JTextField txtFullname = new JTextField();
-        JTextField txtEmail = new JTextField();
-        JComboBox<String> cboRole = new JComboBox<>();
-        JComboBox<String> cboStatus = new JComboBox<>(new String[]{"active","inactive"});
-        JPasswordField pwd = new JPasswordField();
+    private void clearForm() {
+        txtUserId.setText("");
+        txtUsername.setText("");
+        txtPassword.setText("");
+        txtFullname.setText("");
+        txtEmail.setText("");
+        if (cboRole.getItemCount() > 0) cboRole.setSelectedIndex(0);
+        cboStatus.setSelectedIndex(0);
+        table.clearSelection();
+        txtSearch.setText("");
+        loadUsers();
+    }
 
-        // populate roles
-        try (Connection conn = DbConnection.getConnection()){
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery("SELECT role_id, role_name FROM roles ORDER BY role_id");
-            while (rs.next()){
-                cboRole.addItem(rs.getString("role_id")+": "+rs.getString("role_name"));
-            }
-        } catch (SQLException e){ }
-
-        p.add(new JLabel("User ID:")); p.add(txtUserId);
-        p.add(new JLabel("Username:")); p.add(txtUsername);
-        p.add(new JLabel("Fullname:")); p.add(txtFullname);
-        p.add(new JLabel("Email:")); p.add(txtEmail);
-        p.add(new JLabel("Role:")); p.add(cboRole);
-        p.add(new JLabel("Status:")); p.add(cboStatus);
-        p.add(new JLabel("Password (leave blank to keep):")); p.add(pwd);
-
-        if (isEdit){
-            try (Connection conn = DbConnection.getConnection()){
-                PreparedStatement ps = conn.prepareStatement("SELECT * FROM users WHERE user_id = ?");
-                ps.setString(1, userId);
-                ResultSet rs = ps.executeQuery();
-                if (rs.next()){
-                    txtUserId.setText(rs.getString("user_id"));
-                    txtUsername.setText(rs.getString("username"));
-                    txtFullname.setText(rs.getString("fullname"));
-                    txtEmail.setText(rs.getString("email"));
-                    String roleId = rs.getString("role_id");
-                    for (int i=0;i<cboRole.getItemCount();i++){ if (cboRole.getItemAt(i).startsWith(roleId+":")){ cboRole.setSelectedIndex(i); break;} }
-                    cboStatus.setSelectedItem(rs.getString("status"));
-                }
-            } catch (SQLException e){ JOptionPane.showMessageDialog(this, "Error loading user: "+e.getMessage()); }
+    private void addUser() {
+        if (txtUsername.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Username is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        if (txtPassword.getPassword().length == 0) {
+            JOptionPane.showMessageDialog(this, "Password is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
         }
 
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton save = new JButton("Save"); JButton cancel = new JButton("Cancel"); style(save); style(cancel);
-        btns.add(save); btns.add(cancel);
+        boolean success = UserModel.addUser(
+            txtUsername.getText().trim(),
+            new String(txtPassword.getPassword()),
+            txtFullname.getText().trim(),
+            txtEmail.getText().trim(),
+            (String) cboRole.getSelectedItem(),
+            cboStatus.getSelectedItem().toString()
+        );
+        
+        if (success) {
+            JOptionPane.showMessageDialog(this, "User added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearForm();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to add user!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
 
-        save.addActionListener(ae -> {
-            String username = txtUsername.getText().trim();
-            String fullname = txtFullname.getText().trim();
-            String email = txtEmail.getText().trim();
-            String roleSel = (String)cboRole.getSelectedItem();
-            String roleId = roleSel.split(":")[0];
-            String status = (String)cboStatus.getSelectedItem();
-            String password = new String(pwd.getPassword());
+    private void updateUser() {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Please select a user to update", "Selection Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
-            if (username.isEmpty() || fullname.isEmpty()) { JOptionPane.showMessageDialog(dlg, "Username and Fullname required"); return; }
+        if (txtUsername.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Username is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-            try (Connection conn = DbConnection.getConnection()){
-                if (!isEdit){
-                    // insert
-                    String user_id = generateUserId(conn);
-                    String sql = "INSERT INTO users (user_id, username, hashed_password, salt, fullname, email, role_id, status) VALUES (?,?,?,?,?,?,?,?)";
-                    PreparedStatement ps = conn.prepareStatement(sql);
-                    ps.setString(1, user_id);
-                    ps.setString(2, username);
-                    if (!password.isEmpty()){
-                        String salt = PasswordHashing.generateSalt();
-                        String hash = PasswordHashing.hashPassword(password, salt);
-                        ps.setString(3, hash);
-                        ps.setString(4, salt);
-                    } else { ps.setString(3, ""); ps.setString(4, ""); }
-                    ps.setString(5, fullname);
-                    ps.setString(6, email);
-                    ps.setInt(7, Integer.parseInt(roleId));
-                    ps.setString(8, status);
-                    ps.executeUpdate();
-                    JOptionPane.showMessageDialog(dlg, "User created");
-                } else {
-                    // update
-                    String sql = "UPDATE users SET username=?, fullname=?, email=?, role_id=?, status=? WHERE user_id=?";
-                    PreparedStatement ps = conn.prepareStatement(sql);
-                    ps.setString(1, username);
-                    ps.setString(2, fullname);
-                    ps.setString(3, email);
-                    ps.setInt(4, Integer.parseInt(roleId));
-                    ps.setString(5, status);
-                    ps.setString(6, txtUserId.getText());
-                    ps.executeUpdate();
-                    if (!password.isEmpty()){
-                        String salt = PasswordHashing.generateSalt();
-                        String hash = PasswordHashing.hashPassword(password, salt);
-                        PreparedStatement ps2 = conn.prepareStatement("UPDATE users SET hashed_password=?, salt=? WHERE user_id=?");
-                        ps2.setString(1, hash); ps2.setString(2, salt); ps2.setString(3, txtUserId.getText()); ps2.executeUpdate();
-                    }
-                    JOptionPane.showMessageDialog(dlg, "User updated");
+        String password = txtPassword.getPassword().length > 0 ? new String(txtPassword.getPassword()) : null;
+        
+        boolean success = UserModel.updateUser(
+            txtUserId.getText(),
+            txtUsername.getText().trim(),
+            password,  // null if empty - won't update password
+            txtFullname.getText().trim(),
+            txtEmail.getText().trim(),
+            (String) cboRole.getSelectedItem(),
+            cboStatus.getSelectedItem().toString()
+        );
+        
+        if (success) {
+            JOptionPane.showMessageDialog(this, "User updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearForm();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to update user!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void deleteUser() {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Please select a user to delete", "Selection Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete this user?", "Confirm Delete", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        boolean success = UserModel.deleteUser(txtUserId.getText());
+        
+        if (success) {
+            JOptionPane.showMessageDialog(this, "User deleted successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearForm();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to delete user!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void loadUsers() {
+        tableModel.setRowCount(0);
+        try {
+            List<UserDisplay> users = UserModel.getAllUsers();
+
+            if (users.isEmpty()) {
+                tableModel.addRow(new Object[]{"", "No users found", "Click 'Add User' to add", "", "", ""});
+            } else {
+                for (UserDisplay user : users) {
+                    tableModel.addRow(new Object[]{
+                        user.getUserId(),
+                        user.getUsername(),
+                        user.getFullname(),
+                        user.getEmail(),
+                        user.getRoleName(),  // Role NAME, not ID
+                        user.getStatus()
+                    });
                 }
-                dlg.dispose();
-                loadUsers();
-            } catch (SQLException ex){ JOptionPane.showMessageDialog(dlg, "DB error: "+ex.getMessage()); }
-            catch (NoSuchAlgorithmException | InvalidKeySpecException ex){ JOptionPane.showMessageDialog(dlg, "Hashing error: "+ex.getMessage()); }
-        });
-
-        cancel.addActionListener(ae -> dlg.dispose());
-
-        JPanel wrapper = new JPanel(new BorderLayout()); wrapper.add(p, BorderLayout.CENTER); wrapper.add(btns, BorderLayout.SOUTH);
-        dlg.getContentPane().add(wrapper); dlg.pack(); dlg.setLocationRelativeTo(this); dlg.setVisible(true);
-    }
-
-    private void deleteUser(){
-        int r = table.getSelectedRow(); if (r==-1){ JOptionPane.showMessageDialog(this,"Select user"); return; }
-        String id = (String)table.getValueAt(r,0);
-        int c = JOptionPane.showConfirmDialog(this, "Delete user?","Confirm",JOptionPane.YES_NO_OPTION);
-        if (c!=JOptionPane.YES_OPTION) return;
-        try (Connection conn = DbConnection.getConnection()){
-            PreparedStatement ps = conn.prepareStatement("DELETE FROM users WHERE user_id = ?"); ps.setString(1, id); ps.executeUpdate(); loadUsers();
-        } catch (SQLException e){ JOptionPane.showMessageDialog(this, "DB error: "+e.getMessage()); }
-    }
-
-    private String generateUserId(Connection conn) throws SQLException{
-        String sql = "SELECT user_id FROM users WHERE user_id LIKE 'U%' ORDER BY user_id DESC LIMIT 1";
-        Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql);
-        if (rs.next()){ String last = rs.getString(1); int num = Integer.parseInt(last.substring(1))+1; return "U"+String.format("%03d", num); }
-        return "U001";
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error loading users: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 }

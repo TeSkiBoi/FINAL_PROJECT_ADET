@@ -3,61 +3,86 @@ package ui;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
-import model.SessionManager;
-import model.User;
+import model.RoleModel;
+import model.RoleModel.Role;
 import java.awt.*;
-import java.sql.*;
-import db.DbConnection;
+import java.util.List;
 import theme.Theme;
 
 public class RolesPanel extends JPanel {
     private JTable table;
     private DefaultTableModel tableModel;
-    private JTextField txtSearch;
-    private JButton btnAdd, btnEdit, btnDelete, btnRefresh;
+    private JTextField txtSearch, txtRoleId, txtRoleName;
+    private JButton btnAdd, btnUpdate, btnDelete, btnClear, btnRefresh;
     private TableRowSorter<DefaultTableModel> sorter;
 
     public RolesPanel() {
         setLayout(new BorderLayout(10, 10));
-        setBackground(Theme.PRIMARY_LIGHT);
 
-        // Panel title
-        JLabel titleLabel = new JLabel("🔐 Role Management");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        titleLabel.setForeground(Theme.PRIMARY);
-        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
-        add(titleLabel, BorderLayout.NORTH);
+        // Search Panel
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        searchPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Search Role"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        searchPanel.setBackground(Theme.PRIMARY_LIGHT);
 
-        // Top toolbar
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        top.setBackground(Theme.PRIMARY_LIGHT);
-
-        JLabel lblSearch = new JLabel("Search:");
-        lblSearch.setForeground(Theme.TEXT_PRIMARY);
         txtSearch = new JTextField(30);
         btnRefresh = new JButton("🔄 Refresh");
-        btnAdd = new JButton("+ Add Role");
-        btnEdit = new JButton("✏ Edit Role");
-        btnDelete = new JButton("🗑 Delete Role");
 
         styleButton(btnRefresh);
+
+        searchPanel.add(new JLabel("Search:"));
+        searchPanel.add(txtSearch);
+        searchPanel.add(btnRefresh);
+
+        // Form Panel
+        JPanel formPanel = new JPanel(new BorderLayout(10, 10));
+        JPanel inputPanel = new JPanel(new GridLayout(2, 2, 10, 10));
+        inputPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Role Details"),
+            BorderFactory.createEmptyBorder(10, 10, 10, 10)));
+
+        // Role ID field
+        JLabel lblRoleId = new JLabel("Role ID:");
+        lblRoleId.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblRoleId);
+        txtRoleId = new JTextField();
+        txtRoleId.setEditable(false);
+        txtRoleId.setBackground(Color.LIGHT_GRAY);
+        inputPanel.add(txtRoleId);
+        
+        // Role Name field
+        JLabel lblRoleName = new JLabel("Role Name:");
+        lblRoleName.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblRoleName);
+        txtRoleName = new JTextField();
+        inputPanel.add(txtRoleName);
+
+        // Buttons Panel
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        btnAdd = new JButton("Add Role");
+        btnUpdate = new JButton("Update");
+        btnDelete = new JButton("Delete");
+        btnClear = new JButton("Clear");
+
         styleButton(btnAdd);
-        styleButton(btnEdit);
+        styleButton(btnUpdate);
         styleButton(btnDelete);
+        styleButton(btnClear);
 
-        top.add(lblSearch);
-        top.add(txtSearch);
-        top.add(btnRefresh);
-        top.add(Box.createHorizontalStrut(20));
-        top.add(btnAdd);
-        top.add(btnEdit);
-        top.add(btnDelete);
+        btnPanel.add(btnAdd);
+        btnPanel.add(btnUpdate);
+        btnPanel.add(btnDelete);
+        btnPanel.add(btnClear);
 
-        // Combine title and toolbar
+        formPanel.add(inputPanel, BorderLayout.CENTER);
+        formPanel.add(btnPanel, BorderLayout.SOUTH);
+
+        // Top Panel (contains search and form)
         JPanel topPanel = new JPanel(new BorderLayout());
-        topPanel.setBackground(Theme.PRIMARY_LIGHT);
-        topPanel.add(titleLabel, BorderLayout.NORTH);
-        topPanel.add(top, BorderLayout.CENTER);
+        topPanel.add(searchPanel, BorderLayout.NORTH);
+        topPanel.add(formPanel, BorderLayout.CENTER);
+
         add(topPanel, BorderLayout.NORTH);
 
         // Table
@@ -72,22 +97,29 @@ public class RolesPanel extends JPanel {
         sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.getTableHeader().setReorderingAllowed(false);
 
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        // Table selection listener
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && table.getSelectedRow() != -1) {
+                int row = table.getSelectedRow();
+                txtRoleId.setText(tableModel.getValueAt(row, 0).toString());
+                txtRoleName.setText(tableModel.getValueAt(row, 1).toString());
+            }
+        });
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Roles List"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        add(scrollPane, BorderLayout.CENTER);
 
         // Event handlers
         btnRefresh.addActionListener(e -> loadRoles());
-        btnAdd.addActionListener(e -> openRoleDialog(null));
-        btnEdit.addActionListener(e -> {
-            int row = table.getSelectedRow();
-            if (row == -1) {
-                JOptionPane.showMessageDialog(this, "Select a role to edit", "Select", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            String roleId = (String) table.getValueAt(row, 0);
-            openRoleDialog(roleId);
-        });
+        btnAdd.addActionListener(e -> addRole());
+        btnUpdate.addActionListener(e -> updateRole());
         btnDelete.addActionListener(e -> deleteRole());
+        btnClear.addActionListener(e -> clearForm());
 
         txtSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             public void changedUpdate(javax.swing.event.DocumentEvent e) {
@@ -125,128 +157,87 @@ public class RolesPanel extends JPanel {
 
     private void loadRoles() {
         tableModel.setRowCount(0);
-        try (Connection conn = DbConnection.getConnection()) {
-            String sql = "SELECT role_id, role_name FROM roles ORDER BY role_id";
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery(sql);
-            boolean hasData = false;
-            while (rs.next()) {
-                hasData = true;
-                tableModel.addRow(new Object[]{
-                    rs.getString("role_id"),
-                    rs.getString("role_name"),
-                });
+        try {
+            List<Role> roles = RoleModel.getAllRoles();
+            
+            if (roles.isEmpty()) {
+                tableModel.addRow(new Object[]{"", "No roles found"});
+            } else {
+                for (Role role : roles) {
+                    tableModel.addRow(new Object[]{
+                        role.getRoleId(),
+                        role.getRoleName()
+                    });
+                }
             }
-            if (!hasData) {
-                tableModel.addRow(new Object[]{"", "No roles found", "Click 'Add Role' to create a new role", ""});
-            }
-        } catch (SQLException e) {
-            JOptionPane.showMessageDialog(this, "Error loading roles: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error loading roles: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private void openRoleDialog(String roleId) {
-        boolean isEdit = roleId != null;
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), 
-            isEdit ? "Edit Role" : "Add Role", true);
+    private void clearForm() {
+        txtRoleId.setText("");
+        txtRoleName.setText("");
+        table.clearSelection();
+        txtSearch.setText("");
+        loadRoles();
+    }
 
-        JPanel panel = new JPanel(new GridLayout(0, 2, 10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
-
-        JTextField txtRoleName = new JTextField();
-
-        panel.add(new JLabel("Role Name:*"));
-        panel.add(txtRoleName);
-        
-        if (isEdit) {
-            try (Connection conn = DbConnection.getConnection()) {
-                PreparedStatement ps = conn.prepareStatement("SELECT * FROM roles WHERE role_id = ?");
-                ps.setString(1, roleId);
-                ResultSet rs = ps.executeQuery();
-                if (rs.next()) {
-                    txtRoleName.setText(rs.getString("role_name"));
-                }
-            } catch (SQLException e) {
-                JOptionPane.showMessageDialog(this, "Error loading role: " + e.getMessage());
-            }
+    private void addRole() {
+        if (txtRoleName.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Role name is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
         }
 
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton btnSave = new JButton("Save");
-        JButton btnCancel = new JButton("Cancel");
-        styleButton(btnSave);
-        styleButton(btnCancel);
-        btnPanel.add(btnSave);
-        btnPanel.add(btnCancel);
+        boolean success = RoleModel.addRole(txtRoleName.getText().trim());
 
-        btnSave.addActionListener(ae -> {
-            // Validate required fields
-            String roleName = txtRoleName.getText().trim();
-            
-            if (roleName.isEmpty()) {
-                JOptionPane.showMessageDialog(dialog, "Role Name is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
-                txtRoleName.requestFocus();
-                return;
-            }
-            
-            try (Connection conn = DbConnection.getConnection()) {
-                if (!isEdit) {
-                    String sql = "INSERT INTO roles (role_name) VALUES (?)";
-                    PreparedStatement ps = conn.prepareStatement(sql);
-                    ps.setString(1, roleName);
-                    ps.executeUpdate();
-                    JOptionPane.showMessageDialog(dialog, "✓ Role added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                } else {
-                    String sql = "UPDATE roles SET role_name=? WHERE role_id=?";
-                    PreparedStatement ps = conn.prepareStatement(sql);
-                    ps.setString(1, roleName);
-                    ps.setString(2, roleId);
-                    ps.executeUpdate();
-                    JOptionPane.showMessageDialog(dialog, "✓ Role updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                }
-                dialog.dispose();
-                loadRoles();
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(dialog, "Database error: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        });
+        if (success) {
+            JOptionPane.showMessageDialog(this, "Role added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearForm();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to add role!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
 
-        btnCancel.addActionListener(ae -> dialog.dispose());
+    private void updateRole() {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Please select a role to update", "Selection Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
 
-        JPanel wrapper = new JPanel(new BorderLayout());
-        wrapper.add(panel, BorderLayout.CENTER);
-        wrapper.add(btnPanel, BorderLayout.SOUTH);
-        dialog.getContentPane().add(wrapper);
-        dialog.pack();
-        dialog.setLocationRelativeTo(this);
-        dialog.setVisible(true);
+        if (txtRoleName.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Role name is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        boolean success = RoleModel.updateRole(txtRoleId.getText(), txtRoleName.getText().trim());
+
+        if (success) {
+            JOptionPane.showMessageDialog(this, "Role updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearForm();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to update role!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void deleteRole() {
         int row = table.getSelectedRow();
         if (row == -1) {
-            JOptionPane.showMessageDialog(this, "Select a role to delete");
-            return;
-        }
-        String roleId = (String) table.getValueAt(row, 0);
-        
-        // Prevent deleting Admin and Staff roles
-        if ("1".equals(roleId) || "2".equals(roleId)) {
-            JOptionPane.showMessageDialog(this, "Cannot delete system roles (Admin/Staff)", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Please select a role to delete", "Selection Required", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        int confirm = JOptionPane.showConfirmDialog(this, "Delete this role?", "Confirm", JOptionPane.YES_NO_OPTION);
-        if (confirm == JOptionPane.YES_OPTION) {
-            try (Connection conn = DbConnection.getConnection()) {
-                PreparedStatement ps = conn.prepareStatement("DELETE FROM roles WHERE role_id = ?");
-                ps.setString(1, roleId);
-                ps.executeUpdate();
-                JOptionPane.showMessageDialog(this, "Role deleted");
-                loadRoles();
-            } catch (SQLException e) {
-                JOptionPane.showMessageDialog(this, "Error: " + e.getMessage());
-            }
+        int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete this role?", "Confirm Delete", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        boolean success = RoleModel.deleteRole(txtRoleId.getText());
+        
+        if (success) {
+            JOptionPane.showMessageDialog(this, "Role deleted successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearForm();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to delete role (may be a system role)!", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 }

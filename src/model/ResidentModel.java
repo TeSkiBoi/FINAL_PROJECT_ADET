@@ -169,6 +169,51 @@ public class ResidentModel {
         this.age = calculateAge(this.birthDate);
     }
 
+    /**
+     * Get count of children (age < 18)
+     */
+    public static int getChildrenCount() throws SQLException {
+        String sql = "SELECT COUNT(*) as count FROM residents WHERE age < 18";
+        try (Connection conn = DbConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                return rs.getInt("count");
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Get count of adults (age >= 18 and < 60)
+     */
+    public static int getAdultsCount() throws SQLException {
+        String sql = "SELECT COUNT(*) as count FROM residents WHERE age >= 18 AND age < 60";
+        try (Connection conn = DbConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                return rs.getInt("count");
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Get count of seniors (age >= 60)
+     */
+    public static int getSeniorsCount() throws SQLException {
+        String sql = "SELECT COUNT(*) as count FROM residents WHERE age >= 60";
+        try (Connection conn = DbConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                return rs.getInt("count");
+            }
+        }
+        return 0;
+    }
+
     // ===== Getters and setters =====
 
     public int getResidentId() { return residentId; }

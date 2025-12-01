@@ -209,15 +209,9 @@ public class Login extends JFrame {
                 util.Logger.logInfo("Staff user " + currentUser.getUsername() + " accessed limited dashboard");
                 new Dashboard().setVisible(true);
             } else {
-                // Other roles - ClientDashboard (if exists) or default Dashboard
-                try {
-                    util.Logger.logInfo("User " + currentUser.getUsername() + " accessed client dashboard");
-                    new ClientDashboard().setVisible(true);
-                } catch (Exception ex) {
-                    // If ClientDashboard doesn't work, use regular Dashboard
-                    util.Logger.logWarning("ClientDashboard not available, using default Dashboard for " + currentUser.getUsername());
-                    new Dashboard().setVisible(true);
-                }
+                // Other roles - Use default Dashboard
+                util.Logger.logInfo("User " + currentUser.getUsername() + " accessed dashboard");
+                new Dashboard().setVisible(true);
             }
 
             dispose(); // close login window

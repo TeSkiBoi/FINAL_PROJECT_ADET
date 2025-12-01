@@ -17,39 +17,30 @@ public class ResidentPanel extends JPanel {
 
     public ResidentPanel() {
         setLayout(new BorderLayout(10, 10));
-        setBackground(Theme.PRIMARY_LIGHT);
 
-        // Panel title
-        JLabel titleLabel = new JLabel("👥 All Residents");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        titleLabel.setForeground(Theme.PRIMARY);
-        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
-
-        // Top panel with search
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        topPanel.setBackground(Theme.PRIMARY_LIGHT);
+        // Search Panel
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        searchPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Search Resident"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        searchPanel.setBackground(Theme.PRIMARY_LIGHT);
         
-        JLabel lblSearch = new JLabel("Search:");
-        lblSearch.setForeground(Theme.TEXT_PRIMARY);
         txtSearch = new JTextField(30);
         btnRefresh = new JButton("🔄 Refresh");
+        
         styleButton(btnRefresh);
-
-        topPanel.add(lblSearch);
-        topPanel.add(txtSearch);
-        topPanel.add(btnRefresh);
+        
+        searchPanel.add(new JLabel("Search:"));
+        searchPanel.add(txtSearch);
+        searchPanel.add(btnRefresh);
+        searchPanel.add(Box.createHorizontalStrut(10));
         
         JLabel lblNote = new JLabel("(Manage residents through Households)");
         lblNote.setForeground(Theme.TEXT_SECONDARY);
         lblNote.setFont(new Font("Arial", Font.ITALIC, 11));
-        topPanel.add(lblNote);
+        searchPanel.add(lblNote);
 
-        // Combine title and toolbar
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
-        headerPanel.add(titleLabel, BorderLayout.NORTH);
-        headerPanel.add(topPanel, BorderLayout.CENTER);
-        add(headerPanel, BorderLayout.NORTH);
+        add(searchPanel, BorderLayout.NORTH);
 
         // Table setup
         tableModel = new DefaultTableModel(
@@ -64,8 +55,13 @@ public class ResidentPanel extends JPanel {
         residentTable = new JTable(tableModel);
         sorter = new TableRowSorter<>(tableModel);
         residentTable.setRowSorter(sorter);
+        residentTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        residentTable.getTableHeader().setReorderingAllowed(false);
         
         JScrollPane scrollPane = new JScrollPane(residentTable);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Residents List"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
         add(scrollPane, BorderLayout.CENTER);
 
         // Event listeners

@@ -17,21 +17,16 @@ public class RoleModel {
     public static class Role {
         private String roleId;
         private String roleName;
-        private String description;
-        private String permissions;
         
-        public Role(String roleId, String roleName, String description, String permissions) {
+        public Role(String roleId, String roleName) {
             this.roleId = roleId;
             this.roleName = roleName;
-            this.description = description;
-            this.permissions = permissions;
+
         }
         
         // Getters
         public String getRoleId() { return roleId; }
         public String getRoleName() { return roleName; }
-        public String getDescription() { return description; }
-        public String getPermissions() { return permissions; }
     }
     
     /**
@@ -42,7 +37,7 @@ public class RoleModel {
         List<Role> roles = new ArrayList<>();
         
         try (Connection conn = DbConnection.getConnection()) {
-            String sql = "SELECT role_id, role_name, description, permissions " +
+            String sql = "SELECT role_id, role_name " +
                         "FROM roles ORDER BY role_id";
             
             Statement st = conn.createStatement();
@@ -51,9 +46,7 @@ public class RoleModel {
             while (rs.next()) {
                 roles.add(new Role(
                     rs.getString("role_id"),
-                    rs.getString("role_name"),
-                    rs.getString("description"),
-                    rs.getString("permissions")
+                    rs.getString("role_name")
                 ));
             }
         } catch (SQLException e) {
@@ -79,9 +72,7 @@ public class RoleModel {
             if (rs.next()) {
                 return new Role(
                     rs.getString("role_id"),
-                    rs.getString("role_name"),
-                    rs.getString("description"),
-                    rs.getString("permissions")
+                    rs.getString("role_name")
                 );
             }
         } catch (SQLException e) {
@@ -94,22 +85,17 @@ public class RoleModel {
     /**
      * Add new role
      * @param roleName Role name
-     * @param description Description
-     * @param permissions Permissions
      * @return true if successful
      */
-    public static boolean addRole(String roleName, String description, String permissions) {
+    public static boolean addRole(String roleName) {
         try (Connection conn = DbConnection.getConnection()) {
-            String sql = "INSERT INTO roles (role_name, description, permissions) VALUES (?, ?, ?)";
+            String sql = "INSERT INTO roles (role_name) VALUES (?)";
             
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.setString(1, roleName);
-            ps.setString(2, description);
-            ps.setString(3, permissions);
             
             int result = ps.executeUpdate();
-            util.Logger.logCRUDOperation("CREATE", "Role", roleName, 
-                "Description: " + description);
+            util.Logger.logCRUDOperation("CREATE", "Role", roleName, "Role name: " + roleName);
             
             return result > 0;
         } catch (SQLException e) {
@@ -122,19 +108,15 @@ public class RoleModel {
      * Update role
      * @param roleId Role ID
      * @param roleName Role name
-     * @param description Description
-     * @param permissions Permissions
      * @return true if successful
      */
-    public static boolean updateRole(String roleId, String roleName, String description, String permissions) {
+    public static boolean updateRole(String roleId, String roleName) {
         try (Connection conn = DbConnection.getConnection()) {
-            String sql = "UPDATE roles SET role_name=?, description=?, permissions=? WHERE role_id=?";
+            String sql = "UPDATE roles SET role_name=? WHERE role_id=?";
             
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.setString(1, roleName);
-            ps.setString(2, description);
-            ps.setString(3, permissions);
-            ps.setString(4, roleId);
+            ps.setString(2, roleId);
             
             int result = ps.executeUpdate();
             util.Logger.logCRUDOperation("UPDATE", "Role", roleId, roleName);

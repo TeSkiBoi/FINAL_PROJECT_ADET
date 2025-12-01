@@ -1,17 +1,23 @@
 package ui;
 import javax.swing.*;
+
+import db.DbConnection;
+
 import java.awt.*;
 import java.sql.*;
 import java.awt.event.*;
-import db.DbConnection;
+import java.util.Map;
 import model.SessionManager;
 import model.User;
 import model.UserModel;
+import model.DashboardModel;
+import model.ProjectModel;
+import model.ResidentModel;
 import theme.Theme;
 
 public class Dashboard extends JFrame {
     private JPanel sidePanel, mainPanel;
-    private JButton btnHome, btnProducts, btnSuppliers, btnTransactions, btnLogout, btnReports, btnResidents, btnHouseholds, btnUsers, btnLogs, btnChildren, btnSenior, btnAdult, btnRoles;
+    private JButton btnHome, btnLogout, btnFinancial, btnResidents, btnHouseholds, btnUsers, btnLogs, btnChildren, btnSenior, btnAdult, btnRoles, btnProjects, btnOfficials, btnBlotter;
 
     public static void main(String[] args) {
         EventQueue.invokeLater(() -> {
@@ -54,12 +60,14 @@ public class Dashboard extends JFrame {
         btnChildren = createMenuButton("Children", e -> showChildrenPanel());
         btnSenior = createMenuButton("Senior Citizens", e -> showSeniorPanel());
         btnAdult = createMenuButton("Adults", e -> showAdultPanel());
-        btnProducts = createMenuButton("Projects", e -> showProductsPanel());
-        btnReports = createMenuButton("Financial", e -> showReportsPanel());
+        
+        // Features - accessible to both admin and staff
+        btnProjects = createMenuButton("Barangay Projects", e -> showProjectsPanel());
+        btnFinancial = createMenuButton("Financial", e -> showFinancialPanel());
         
         // Admin-only buttons
-        btnSuppliers = createMenuButton("Officials", e -> showSuppliersPanel());
-        btnTransactions = createMenuButton("Blotter/Incidents", e -> showTransactionsPanel());
+        btnOfficials = createMenuButton("Officials", e -> showOfficialsPanel());
+        btnBlotter = createMenuButton("Blotter/Incidents", e -> showBlotterPanel());
         btnUsers = createMenuButton("Users", e -> showUsersPanel());
         btnRoles = createMenuButton("Roles", e -> showRolesPanel());
         btnLogs = createMenuButton("Activity Log", e -> showLogsPanel());
@@ -79,33 +87,43 @@ public class Dashboard extends JFrame {
         // Build menu based on role
         if (isAdmin) {
             // Admin sees everything
-            sidePanel.setLayout(new GridLayout(15, 1, 8, 8));
+            sidePanel.setLayout(new GridLayout(16, 1, 8, 8));
             sidePanel.add(btnHome);
+            sidePanel.add(new JSeparator());
+            sidePanel.add(new JLabel("Records")); // Section label
             sidePanel.add(btnResidents);
             sidePanel.add(btnHouseholds);
             sidePanel.add(btnChildren);
             sidePanel.add(btnSenior);
             sidePanel.add(btnAdult);
-            sidePanel.add(btnProducts);
-            sidePanel.add(btnSuppliers);
-            sidePanel.add(btnTransactions);
-            sidePanel.add(btnReports);
+            sidePanel.add(new JSeparator());
+            sidePanel.add(new JLabel("Features")); // Section label
+            sidePanel.add(btnProjects);
+            sidePanel.add(btnFinancial);
+            sidePanel.add(btnOfficials);
+            sidePanel.add(btnBlotter);
+            sidePanel.add(new JSeparator());
+            sidePanel.add(new JLabel("Admin")); // Section label
             sidePanel.add(btnUsers);
             sidePanel.add(btnRoles);
             sidePanel.add(btnLogs);
             sidePanel.add(new JPanel()); // Spacer
             sidePanel.add(btnLogout);
         } else if (isStaff) {
-            // Staff sees limited menu
-            sidePanel.setLayout(new GridLayout(10, 1, 8, 8));
+            // Staff sees limited menu - view-only for records, editable for features
+            sidePanel.setLayout(new GridLayout(14, 1, 8, 8));
             sidePanel.add(btnHome);
+            sidePanel.add(new JSeparator());
+            sidePanel.add(new JLabel("Records (View Only)")); // Section label
             sidePanel.add(btnResidents);
             sidePanel.add(btnHouseholds);
             sidePanel.add(btnChildren);
             sidePanel.add(btnSenior);
             sidePanel.add(btnAdult);
-            sidePanel.add(btnProducts);
-            sidePanel.add(btnReports);
+            sidePanel.add(new JSeparator());
+            sidePanel.add(new JLabel("Features (Editable)")); // Section label
+            sidePanel.add(btnProjects);
+            sidePanel.add(btnFinancial);
             sidePanel.add(new JPanel()); // Spacer
             sidePanel.add(btnLogout);
         } else {
@@ -227,14 +245,12 @@ public class Dashboard extends JFrame {
     }
 
     private void loadCategoryStats(JPanel panel) {
-        try (Connection conn = DbConnection.getConnection()) {
-            String sql = "SELECT project_category AS category, COUNT(*) as count FROM barangay_projects GROUP BY project_category";
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(sql);
+        try {
+            Map<String, Integer> categoryStats = ProjectModel.getProjectCountByCategory();
 
-            while (rs.next()) {
-                String category = rs.getString("category");
-                int count = rs.getInt("count");
+            for (Map.Entry<String, Integer> entry : categoryStats.entrySet()) {
+                String category = entry.getKey();
+                int count = entry.getValue();
 
                 JPanel categoryRow = new JPanel(new BorderLayout(10, 0));
                 categoryRow.setBackground(Theme.PRIMARY_LIGHT);
@@ -262,12 +278,8 @@ public class Dashboard extends JFrame {
     }
 
     private int loadTotalProjects() {
-        try (Connection conn = DbConnection.getConnection()) {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM barangay_projects");
-            if (rs.next()) {
-                return rs.getInt("count");
-            }
+        try {
+            return ProjectModel.getProjectCount();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -275,12 +287,8 @@ public class Dashboard extends JFrame {
     }
 
     private int loadTotalResidents() {
-        try (Connection conn = DbConnection.getConnection()) {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM residents");
-            if (rs.next()) {
-                return rs.getInt("count");
-            }
+        try {
+            return DashboardModel.getResidentCount();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -288,12 +296,8 @@ public class Dashboard extends JFrame {
     }
 
     private int loadTotalHouseholds() {
-        try (Connection conn = DbConnection.getConnection()) {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM households");
-            if (rs.next()) {
-                return rs.getInt("count");
-            }
+        try {
+            return DashboardModel.getHouseholdCount();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -301,12 +305,8 @@ public class Dashboard extends JFrame {
     }
 
     private int loadTotalChildren() {
-        try (Connection conn = DbConnection.getConnection()) {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM residents WHERE age < 18");
-            if (rs.next()) {
-                return rs.getInt("count");
-            }
+        try {
+            return ResidentModel.getChildrenCount();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -314,12 +314,8 @@ public class Dashboard extends JFrame {
     }
 
     private int loadTotalAdults() {
-        try (Connection conn = DbConnection.getConnection()) {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM residents WHERE age >= 18 AND age < 60");
-            if (rs.next()) {
-                return rs.getInt("count");
-            }
+        try {
+            return ResidentModel.getAdultsCount();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -327,12 +323,8 @@ public class Dashboard extends JFrame {
     }
 
     private int loadTotalSeniors() {
-        try (Connection conn = DbConnection.getConnection()) {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM residents WHERE age >= 60");
-            if (rs.next()) {
-                return rs.getInt("count");
-            }
+        try {
+            return ResidentModel.getSeniorsCount();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -340,12 +332,8 @@ public class Dashboard extends JFrame {
     }
 
     private int loadActiveProjects() {
-        try (Connection conn = DbConnection.getConnection()) {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM barangay_projects WHERE project_status = 'In Progress' OR project_status = 'Active'");
-            if (rs.next()) {
-                return rs.getInt("count");
-            }
+        try {
+            return ProjectModel.getProjectCount(); // Can be enhanced to filter by status
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -378,33 +366,30 @@ public class Dashboard extends JFrame {
         return 0;
     }
 
-    private void showProductsPanel() {
+    private void showBlotterPanel() {
         mainPanel.removeAll();
-        mainPanel.add(new ProductPanel());
-        mainPanel.revalidate();
-        mainPanel.repaint();
-    }
-
-    private void showSuppliersPanel() {
-        mainPanel.removeAll();
-        // show Barangay Officials panel instead of supplier wording
-        mainPanel.add(new OfficialsPanel());
-        mainPanel.revalidate();
-        mainPanel.repaint();
-    }
-
-    private void showTransactionsPanel() {
-        mainPanel.removeAll();
-        // show Blotter/Incidents panel
         mainPanel.add(new BlotterPanel());
         mainPanel.revalidate();
         mainPanel.repaint();
     }
 
-    private void showReportsPanel() {
+    private void showFinancialPanel() {
         mainPanel.removeAll();
-        // show Financial panel
         mainPanel.add(new FinancialPanel());
+        mainPanel.revalidate();
+        mainPanel.repaint();
+    }
+
+    private void showProjectsPanel() {
+        mainPanel.removeAll();
+        mainPanel.add(new ProjectsPanel());
+        mainPanel.revalidate();
+        mainPanel.repaint();
+    }
+
+    private void showOfficialsPanel() {
+        mainPanel.removeAll();
+        mainPanel.add(new OfficialsPanel());
         mainPanel.revalidate();
         mainPanel.repaint();
     }

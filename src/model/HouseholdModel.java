@@ -3,7 +3,9 @@ package model;
 import db.DbConnection;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class HouseholdModel {
     private int householdId;
@@ -44,6 +46,118 @@ public class HouseholdModel {
             e.printStackTrace();
         }
         return list;
+    }
+
+    /**
+     * Get all households with head name and member count
+     * Returns a list of maps containing household details
+     */
+    public static List<Map<String, Object>> getAllWithDetails() throws SQLException {
+        List<Map<String, Object>> list = new ArrayList<>();
+        String sql = "SELECT h.household_id, h.family_no, " +
+                    "CONCAT(COALESCE(r.first_name, ''), ' ', COALESCE(r.middle_name, ''), ' ', COALESCE(r.last_name, '')) AS head_name, " +
+                    "h.address, h.income, " +
+                    "(SELECT COUNT(*) FROM residents r2 WHERE r2.household_id = h.household_id) as member_count " +
+                    "FROM households h " +
+                    "LEFT JOIN residents r ON h.household_id = r.household_id AND r.resident_id = " +
+                    "(SELECT MIN(r3.resident_id) FROM residents r3 WHERE r3.household_id = h.household_id) " +
+                    "ORDER BY h.household_id";
+        
+        try (Connection conn = DbConnection.getConnection();
+             Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+            
+            while (rs.next()) {
+                Map<String, Object> household = new HashMap<>();
+                household.put("household_id", rs.getInt("household_id"));
+                household.put("family_no", rs.getInt("family_no"));
+                
+                String headName = rs.getString("head_name");
+                if (headName == null || headName.trim().isEmpty()) {
+                    headName = "Not assigned yet";
+                } else {
+                    headName = headName.trim();
+                }
+                household.put("head_name", headName);
+                household.put("address", rs.getString("address"));
+                household.put("income", rs.getDouble("income"));
+                household.put("member_count", rs.getInt("member_count"));
+                
+                list.add(household);
+            }
+        }
+        return list;
+    }
+
+    /**
+     * Get household by ID
+     */
+    public static HouseholdModel getById(int householdId) throws SQLException {
+        String sql = "SELECT household_id, family_no, address, income FROM households WHERE household_id = ?";
+        
+        try (Connection conn = DbConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setInt(1, householdId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    HouseholdModel h = new HouseholdModel();
+                    h.setHouseholdId(rs.getInt("household_id"));
+                    h.setFamilyNo(rs.getInt("family_no"));
+                    h.setAddress(rs.getString("address"));
+                    h.setIncome(rs.getDouble("income"));
+                    return h;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get member count for a household
+     */
+    public static int getMemberCount(int householdId) throws SQLException {
+        String sql = "SELECT COUNT(*) as cnt FROM residents WHERE household_id = ?";
+        
+        try (Connection conn = DbConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            
+            ps.setInt(1, householdId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("cnt");
+                }
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Delete household and all its members
+     */
+    public static boolean deleteHouseholdAndMembers(int householdId) throws SQLException {
+        try (Connection conn = DbConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                // Delete all residents first
+                PreparedStatement ps = conn.prepareStatement("DELETE FROM residents WHERE household_id = ?");
+                ps.setInt(1, householdId);
+                ps.executeUpdate();
+                
+                // Then delete household
+                ps = conn.prepareStatement("DELETE FROM households WHERE household_id = ?");
+                ps.setInt(1, householdId);
+                ps.executeUpdate();
+                
+                conn.commit();
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        }
     }
 
     public boolean create() {

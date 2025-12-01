@@ -3,67 +3,182 @@ package ui;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
+import model.OfficialModel;
+import model.OfficialModel.Official;
 import java.awt.*;
-import java.awt.event.*;
-import java.sql.*;
-import db.DbConnection;
+import java.util.List;
 import theme.Theme;
 
 public class OfficialsPanel extends JPanel {
     private JTable table;
-    private DefaultTableModel model;
-    private JTextField txtPosition, txtFullname, txtImage, txtOrder;
+    private DefaultTableModel tableModel;
+    private JTextField txtSearch, txtOfficialId, txtPosition, txtFullname, txtImage, txtOrder;
     private JComboBox<String> cboActive;
-    private JButton btnAdd, btnUpdate, btnDelete, btnRefresh;
-    private JTextField txtSearch;
+    private JButton btnAdd, btnUpdate, btnDelete, btnClear, btnRefresh;
     private TableRowSorter<DefaultTableModel> sorter;
 
     public OfficialsPanel() {
-        setLayout(new BorderLayout(10,10));
+        setLayout(new BorderLayout(10, 10));
         
-        // Panel title
-        JLabel titleLabel = new JLabel("👔 Barangay Officials");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        titleLabel.setForeground(Theme.PRIMARY);
-        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        // Search Panel
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        searchPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Search Official"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        searchPanel.setBackground(Theme.PRIMARY_LIGHT);
         
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        
-        JLabel lblSearch = new JLabel("Search:");
         txtSearch = new JTextField(30);
-        btnRefresh = new JButton("🔄 Refresh"); btnAdd = new JButton("+ Add"); btnUpdate = new JButton("✏ Edit"); btnDelete = new JButton("🗑 Delete");
-        style(btnRefresh); style(btnAdd); style(btnUpdate); style(btnDelete);
+        btnRefresh = new JButton("🔄 Refresh");
         
-        top.add(lblSearch);
-        top.add(txtSearch);
-        top.add(btnRefresh); top.add(btnAdd); top.add(btnUpdate); top.add(btnDelete);
+        styleButton(btnRefresh);
         
-        // Combine title and toolbar
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.add(titleLabel, BorderLayout.NORTH);
-        headerPanel.add(top, BorderLayout.CENTER);
-        add(headerPanel, BorderLayout.NORTH);
+        searchPanel.add(new JLabel("Search:"));
+        searchPanel.add(txtSearch);
+        searchPanel.add(btnRefresh);
 
-        model = new DefaultTableModel(new String[]{"ID","Position","Full Name","Image","Order","Active"},0) { @Override public boolean isCellEditable(int r,int c){return false;} };
-        table = new JTable(model);
-        sorter = new TableRowSorter<>(model);
+        // Form Panel
+        JPanel formPanel = new JPanel(new BorderLayout(10, 10));
+        JPanel inputPanel = new JPanel(new GridLayout(6, 2, 10, 10));
+        inputPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Official Details"),
+            BorderFactory.createEmptyBorder(10, 10, 10, 10)));
+
+        // ID field (read-only)
+        JLabel lblId = new JLabel("Official ID:");
+        lblId.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblId);
+        txtOfficialId = new JTextField();
+        txtOfficialId.setEditable(false);
+        txtOfficialId.setBackground(Color.LIGHT_GRAY);
+        inputPanel.add(txtOfficialId);
+
+        // Position field
+        JLabel lblPosition = new JLabel("Position:");
+        lblPosition.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblPosition);
+        txtPosition = new JTextField();
+        inputPanel.add(txtPosition);
+
+        // Full Name field
+        JLabel lblFullname = new JLabel("Full Name:");
+        lblFullname.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblFullname);
+        txtFullname = new JTextField();
+        inputPanel.add(txtFullname);
+
+        // Image Path field
+        JLabel lblImage = new JLabel("Image Path:");
+        lblImage.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblImage);
+        txtImage = new JTextField();
+        inputPanel.add(txtImage);
+
+        // Display Order field
+        JLabel lblOrder = new JLabel("Display Order:");
+        lblOrder.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblOrder);
+        txtOrder = new JTextField();
+        inputPanel.add(txtOrder);
+
+        // Active field
+        JLabel lblActive = new JLabel("Active:");
+        lblActive.setFont(new Font("Arial", Font.BOLD, 12));
+        inputPanel.add(lblActive);
+        cboActive = new JComboBox<>(new String[]{"Yes", "No"});
+        inputPanel.add(cboActive);
+
+        // Buttons Panel
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        btnAdd = new JButton("Add Official");
+        btnUpdate = new JButton("Update");
+        btnDelete = new JButton("Delete");
+        btnClear = new JButton("Clear");
+
+        styleButton(btnAdd);
+        styleButton(btnUpdate);
+        styleButton(btnDelete);
+        styleButton(btnClear);
+
+        btnPanel.add(btnAdd);
+        btnPanel.add(btnUpdate);
+        btnPanel.add(btnDelete);
+        btnPanel.add(btnClear);
+
+        formPanel.add(inputPanel, BorderLayout.CENTER);
+        formPanel.add(btnPanel, BorderLayout.SOUTH);
+
+        // Top Panel (contains search and form)
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(searchPanel, BorderLayout.NORTH);
+        topPanel.add(formPanel, BorderLayout.CENTER);
+
+        add(topPanel, BorderLayout.NORTH);
+
+        // Table
+        tableModel = new DefaultTableModel(
+            new Object[]{"ID", "Position", "Full Name", "Image", "Order", "Active"}, 0) {
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        table = new JTable(tableModel);
+        sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.getTableHeader().setReorderingAllowed(false);
 
+        // Table selection listener - populates form when row clicked
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && table.getSelectedRow() != -1) {
+                int row = table.getSelectedRow();
+                txtOfficialId.setText(tableModel.getValueAt(row, 0).toString());
+                txtPosition.setText(tableModel.getValueAt(row, 1).toString());
+                txtFullname.setText(tableModel.getValueAt(row, 2).toString());
+                txtImage.setText(tableModel.getValueAt(row, 3) != null ? tableModel.getValueAt(row, 3).toString() : "");
+                txtOrder.setText(tableModel.getValueAt(row, 4).toString());
+                cboActive.setSelectedItem(tableModel.getValueAt(row, 5).toString());
+            }
+        });
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Barangay Officials List"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        add(scrollPane, BorderLayout.CENTER);
+
+        // Event handlers
         btnRefresh.addActionListener(e -> loadOfficials());
-        btnAdd.addActionListener(e -> openDialog(null));
-        btnUpdate.addActionListener(e -> { int r = table.getSelectedRow(); if (r==-1){ JOptionPane.showMessageDialog(this,"Select an official"); return;} openDialog((Integer)table.getValueAt(r,0)); });
-        btnDelete.addActionListener(e -> deleteSelected());
-        
+        btnAdd.addActionListener(e -> addOfficial());
+        btnUpdate.addActionListener(e -> updateOfficial());
+        btnDelete.addActionListener(e -> deleteOfficial());
+        btnClear.addActionListener(e -> clearForm());
+
         txtSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { search(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { search(); }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { search(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
+
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
+
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
         });
 
         loadOfficials();
     }
-    
+
+    private void styleButton(JButton b) {
+        b.setBackground(Theme.PRIMARY);
+        b.setForeground(Color.WHITE);
+        b.setFocusPainted(false);
+        b.setBorderPainted(false);
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    }
+
     private void search() {
         String text = txtSearch.getText().trim();
         if (text.isEmpty()) {
@@ -73,109 +188,152 @@ public class OfficialsPanel extends JPanel {
         }
     }
 
-    private void style(JButton b){ b.setBackground(Theme.PRIMARY); b.setForeground(Color.WHITE); b.setFocusPainted(false); b.setBorderPainted(false); }
+    private void loadOfficials() {
+        tableModel.setRowCount(0);
+        try {
+            List<Official> officials = OfficialModel.getAllOfficials();
 
-    private void loadOfficials(){
-        model.setRowCount(0);
-        try (Connection conn = DbConnection.getConnection()){
-            String sql = "SELECT id, position_title, full_name, image_path, display_order, is_active FROM barangay_officials ORDER BY display_order";
-            Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql);
-            boolean hasData = false;
-            while (rs.next()){
-                hasData = true;
-                model.addRow(new Object[]{ rs.getInt("id"), rs.getString("position_title"), rs.getString("full_name"), rs.getString("image_path"), rs.getInt("display_order"), rs.getString("is_active") });
+            if (officials.isEmpty()) {
+                tableModel.addRow(new Object[]{"", "No officials found", "Click 'Add Official' to add", "", "", ""});
+            } else {
+                for (Official official : officials) {
+                    tableModel.addRow(new Object[]{
+                        official.getId(),
+                        official.getPositionTitle(),
+                        official.getFullName(),
+                        official.getImagePath(),
+                        official.getDisplayOrder(),
+                        official.getIsActive()
+                    });
+                }
             }
-            if (!hasData) {
-                model.addRow(new Object[]{"", "No officials found", "Click 'Add' to add a new official", "", "", ""});
-            }
-        } catch (SQLException e){ JOptionPane.showMessageDialog(this, "Error loading officials: "+e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE); }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error loading officials: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
-    private void openDialog(Integer id){
-        boolean isEdit = id != null;
-        JDialog dlg = new JDialog(SwingUtilities.getWindowAncestor(this), isEdit?"Edit Official":"Add Official", Dialog.ModalityType.APPLICATION_MODAL);
-        JPanel p = new JPanel(new GridLayout(0,2,8,8)); p.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
-        txtPosition = new JTextField(); txtFullname = new JTextField(); txtImage = new JTextField(); txtOrder = new JTextField("0"); cboActive = new JComboBox<>(new String[]{"Yes","No"});
-        p.add(new JLabel("Position:")); p.add(txtPosition);
-        p.add(new JLabel("Full Name:")); p.add(txtFullname);
-        p.add(new JLabel("Image Path:")); p.add(txtImage);
-        p.add(new JLabel("Display Order:")); p.add(txtOrder);
-        p.add(new JLabel("Active:")); p.add(cboActive);
+    private void clearForm() {
+        txtOfficialId.setText("");
+        txtPosition.setText("");
+        txtFullname.setText("");
+        txtImage.setText("");
+        txtOrder.setText("");
+        cboActive.setSelectedIndex(0);
+        table.clearSelection();
+        txtSearch.setText("");
+        loadOfficials();
+    }
 
-        if (isEdit){
-            try (Connection conn = DbConnection.getConnection()){ PreparedStatement ps = conn.prepareStatement("SELECT * FROM barangay_officials WHERE id = ?"); ps.setInt(1,id); ResultSet rs = ps.executeQuery(); if (rs.next()){ txtPosition.setText(rs.getString("position_title")); txtFullname.setText(rs.getString("full_name")); txtImage.setText(rs.getString("image_path")); txtOrder.setText(String.valueOf(rs.getInt("display_order"))); cboActive.setSelectedItem(rs.getString("is_active")); } } catch (SQLException e){ JOptionPane.showMessageDialog(this,"Error loading official: "+e.getMessage()); }
+    private void addOfficial() {
+        if (txtPosition.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Position is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        if (txtFullname.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Full Name is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        if (txtOrder.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Display Order is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
         }
 
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT)); JButton save = new JButton("Save"); JButton cancel = new JButton("Cancel"); style(save); style(cancel); btns.add(save); btns.add(cancel);
-        save.addActionListener(ae -> {
-            // Validate required fields
-            String position = txtPosition.getText().trim();
-            String fullname = txtFullname.getText().trim();
-            String orderStr = txtOrder.getText().trim();
-            
-            if (position.isEmpty()) {
-                JOptionPane.showMessageDialog(dlg, "Position is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
-                txtPosition.requestFocus();
+        int displayOrder;
+        try {
+            displayOrder = Integer.parseInt(txtOrder.getText().trim());
+            if (displayOrder < 0) {
+                JOptionPane.showMessageDialog(this, "Display Order must be non-negative!", "Validation Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            if (fullname.isEmpty()) {
-                JOptionPane.showMessageDialog(dlg, "Full Name is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
-                txtFullname.requestFocus();
-                return;
-            }
-            if (orderStr.isEmpty()) {
-                JOptionPane.showMessageDialog(dlg, "Display Order is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
-                txtOrder.requestFocus();
-                return;
-            }
-            
-            int displayOrder;
-            try {
-                displayOrder = Integer.parseInt(orderStr);
-                if (displayOrder < 0) {
-                    JOptionPane.showMessageDialog(dlg, "Display Order must be a non-negative number!", "Validation Error", JOptionPane.ERROR_MESSAGE);
-                    txtOrder.requestFocus();
-                    return;
-                }
-            } catch (NumberFormatException e) {
-                JOptionPane.showMessageDialog(dlg, "Invalid Display Order format!\nExpected format: integer (e.g., 0, 1, 2)", "Format Error", JOptionPane.ERROR_MESSAGE);
-                txtOrder.requestFocus();
-                return;
-            }
-            
-            try (Connection conn = DbConnection.getConnection()){
-                if (!isEdit){ 
-                    String sql = "INSERT INTO barangay_officials (position_title, full_name, image_path, display_order, is_active) VALUES (?,?,?,?,?)"; 
-                    PreparedStatement ps = conn.prepareStatement(sql); 
-                    ps.setString(1, position); 
-                    ps.setString(2, fullname); 
-                    ps.setString(3, txtImage.getText().trim()); 
-                    ps.setInt(4, displayOrder); 
-                    ps.setString(5, (String)cboActive.getSelectedItem()); 
-                    ps.executeUpdate(); 
-                    JOptionPane.showMessageDialog(dlg,"✓ Official added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE); 
-                }
-                else { 
-                    String sql = "UPDATE barangay_officials SET position_title=?, full_name=?, image_path=?, display_order=?, is_active=? WHERE id=?"; 
-                    PreparedStatement ps = conn.prepareStatement(sql); 
-                    ps.setString(1, position); 
-                    ps.setString(2, fullname); 
-                    ps.setString(3, txtImage.getText().trim()); 
-                    ps.setInt(4, displayOrder); 
-                    ps.setString(5, (String)cboActive.getSelectedItem()); 
-                    ps.setInt(6, id); 
-                    ps.executeUpdate(); 
-                    JOptionPane.showMessageDialog(dlg,"✓ Official updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE); 
-                }
-                dlg.dispose(); loadOfficials();
-            } catch (SQLException e){ 
-                JOptionPane.showMessageDialog(dlg,"Database error: "+e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE); 
-            }
-        });
-        cancel.addActionListener(ae -> dlg.dispose());
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Display Order must be a number!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-        JPanel wrapper = new JPanel(new BorderLayout()); wrapper.add(p, BorderLayout.CENTER); wrapper.add(btns, BorderLayout.SOUTH); dlg.getContentPane().add(wrapper); dlg.pack(); dlg.setLocationRelativeTo(this); dlg.setVisible(true);
+        boolean success = OfficialModel.addOfficial(
+            txtPosition.getText().trim(),
+            txtFullname.getText().trim(),
+            txtImage.getText().trim(),
+            displayOrder,
+            cboActive.getSelectedItem().toString()
+        );
+
+        if (success) {
+            JOptionPane.showMessageDialog(this, "Official added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearForm();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to add official!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
-    private void deleteSelected(){ int r = table.getSelectedRow(); if (r==-1){ JOptionPane.showMessageDialog(this,"Select an official"); return; } int id = (Integer)table.getValueAt(r,0); int c = JOptionPane.showConfirmDialog(this,"Delete official?","Confirm",JOptionPane.YES_NO_OPTION); if (c!=JOptionPane.YES_OPTION) return; try (Connection conn = DbConnection.getConnection()){ PreparedStatement ps = conn.prepareStatement("DELETE FROM barangay_officials WHERE id = ?"); ps.setInt(1,id); ps.executeUpdate(); loadOfficials(); } catch (SQLException e){ JOptionPane.showMessageDialog(this,"DB error: "+e.getMessage()); } }
+    private void updateOfficial() {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Please select an official to update", "Selection Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (txtPosition.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Position is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        if (txtFullname.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Full Name is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        if (txtOrder.getText().trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Display Order is required!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        int displayOrder;
+        try {
+            displayOrder = Integer.parseInt(txtOrder.getText().trim());
+            if (displayOrder < 0) {
+                JOptionPane.showMessageDialog(this, "Display Order must be non-negative!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Display Order must be a number!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        int id = Integer.parseInt(txtOfficialId.getText());
+        boolean success = OfficialModel.updateOfficial(
+            id,
+            txtPosition.getText().trim(),
+            txtFullname.getText().trim(),
+            txtImage.getText().trim(),
+            displayOrder,
+            cboActive.getSelectedItem().toString()
+        );
+
+        if (success) {
+            JOptionPane.showMessageDialog(this, "Official updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearForm();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to update official!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void deleteOfficial() {
+        int row = table.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Please select an official to delete", "Selection Required", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete this official?", "Confirm Delete", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        int id = Integer.parseInt(txtOfficialId.getText());
+        boolean success = OfficialModel.deleteOfficial(id);
+
+        if (success) {
+            JOptionPane.showMessageDialog(this, "Official deleted successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            clearForm();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to delete official!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
 }

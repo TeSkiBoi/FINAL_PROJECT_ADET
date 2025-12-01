@@ -3,20 +3,18 @@ package ui;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
-import model.SessionManager;
-import model.User;
+import model.FinancialModel;
 import java.awt.*;
 import java.sql.*;
-import java.util.Calendar;
-import db.DbConnection;
+import java.util.List;
+import java.util.Map;
 import util.ErrorHandler;
 import util.Logger;
-import util.DateTimeFormatter;
 import theme.Theme;
 
 public class FinancialPanel extends JPanel {
     private JTable table;
-    private DefaultTableModel model;
+    private DefaultTableModel tableModel;
     private JButton btnRefresh, btnAdd, btnEdit, btnDelete;
     private JTextField txtSearch;
     private JComboBox<String> cboFilterType;
@@ -24,90 +22,79 @@ public class FinancialPanel extends JPanel {
 
     public FinancialPanel() {
         setLayout(new BorderLayout(10, 10));
-        setBackground(Theme.PRIMARY_LIGHT);
 
-        // Panel title
-        JLabel titleLabel = new JLabel("💰 Financial Management");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        titleLabel.setForeground(Theme.PRIMARY);
-        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
-
-        // Top panel with search and buttons
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        top.setBackground(Theme.PRIMARY_LIGHT);
+        // Search Panel
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        searchPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Search Financial Transaction"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        searchPanel.setBackground(Theme.PRIMARY_LIGHT);
         
-        // Search components
-        JLabel lblSearch = new JLabel("Search:");
-        lblSearch.setForeground(Theme.TEXT_PRIMARY);
         txtSearch = new JTextField(20);
-        
-        // Filter by type
-        JLabel lblFilter = new JLabel("Filter:");
-        lblFilter.setForeground(Theme.TEXT_PRIMARY);
         cboFilterType = new JComboBox<>(new String[]{"All", "Income", "Expense"});
-        
         btnRefresh = new JButton("🔄 Refresh");
-        btnAdd = new JButton("➕ Add Transaction");
-        btnEdit = new JButton("✏️ Edit");
-        btnDelete = new JButton("🗑️ Delete");
         
         styleButton(btnRefresh);
+        
+        searchPanel.add(new JLabel("Search:"));
+        searchPanel.add(txtSearch);
+        searchPanel.add(new JLabel("Filter:"));
+        searchPanel.add(cboFilterType);
+        searchPanel.add(btnRefresh);
+        
+        // Action Buttons Panel
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        actionPanel.setBackground(Theme.PRIMARY_LIGHT);
+        
+        btnAdd = new JButton("➕ Add Transaction");
+        btnEdit = new JButton("✏️ Edit Transaction");
+        btnDelete = new JButton("🗑️ Delete Transaction");
+        
         styleButton(btnAdd);
         styleButton(btnEdit);
         styleButton(btnDelete);
         
-        top.add(lblSearch);
-        top.add(txtSearch);
-        top.add(lblFilter);
-        top.add(cboFilterType);
-        top.add(btnRefresh);
-        top.add(btnAdd);
-        top.add(btnEdit);
-        top.add(btnDelete);
+        actionPanel.add(btnAdd);
+        actionPanel.add(btnEdit);
+        actionPanel.add(btnDelete);
 
-        // Check user permissions
-        User current = SessionManager.getInstance().getCurrentUser();
-        boolean canModify = false;
-        if (current != null) {
-            String role = current.getRoleId();
-            canModify = "1".equals(role) || "2".equals(role);
-        }
-        btnAdd.setEnabled(canModify);
-        btnEdit.setEnabled(canModify);
-        btnDelete.setEnabled(canModify);
+        // Top Panel (contains search and actions)
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(searchPanel, BorderLayout.NORTH);
+        topPanel.add(actionPanel, BorderLayout.CENTER);
 
-        // Combine title and toolbar
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
-        headerPanel.add(titleLabel, BorderLayout.NORTH);
-        headerPanel.add(top, BorderLayout.CENTER);
-        add(headerPanel, BorderLayout.NORTH);
+        add(topPanel, BorderLayout.NORTH);
 
-        // Table with sorter
-        model = new DefaultTableModel(
-            new String[]{"ID", "Date & Time", "Type", "Category", "Amount", "Description", "Method"}, 0) {
-            @Override
-            public boolean isCellEditable(int r, int c) {
+        // Table
+        tableModel = new DefaultTableModel(
+            new Object[]{"ID", "Date", "Type", "Category", "Amount", "Description", "Method"}, 0) {
+            public boolean isCellEditable(int row, int column) {
                 return false;
             }
         };
-        
-        table = new JTable(model);
-        sorter = new TableRowSorter<>(model);
+
+        table = new JTable(tableModel);
+        sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.getTableHeader().setReorderingAllowed(false);
         
         // Set column widths
         table.getColumnModel().getColumn(0).setPreferredWidth(50);   // ID
-        table.getColumnModel().getColumn(1).setPreferredWidth(150);  // Date & Time
+        table.getColumnModel().getColumn(1).setPreferredWidth(120);  // Date
         table.getColumnModel().getColumn(2).setPreferredWidth(80);   // Type
         table.getColumnModel().getColumn(3).setPreferredWidth(120);  // Category
         table.getColumnModel().getColumn(4).setPreferredWidth(100);  // Amount
         table.getColumnModel().getColumn(5).setPreferredWidth(200);  // Description
         table.getColumnModel().getColumn(6).setPreferredWidth(120);  // Method
         
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Financial Transactions List"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        add(scrollPane, BorderLayout.CENTER);
 
-        // Event listeners
+        // Event handlers
         btnRefresh.addActionListener(e -> loadTransactions());
         btnAdd.addActionListener(e -> openDialog(null));
         btnEdit.addActionListener(e -> {
@@ -117,18 +104,24 @@ public class FinancialPanel extends JPanel {
                 return;
             }
             int rowModel = table.convertRowIndexToModel(r);
-            openDialog((Integer) model.getValueAt(rowModel, 0));
+            openDialog((Integer) tableModel.getValueAt(rowModel, 0));
         });
         btnDelete.addActionListener(e -> deleteSelected());
-        
-        // Search listener
+
         txtSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { search(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { search(); }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { search(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
+
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
+
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
         });
-        
-        // Filter listener
+
         cboFilterType.addActionListener(e -> search());
 
         loadTransactions();
@@ -141,13 +134,13 @@ public class FinancialPanel extends JPanel {
         b.setBorderPainted(false);
         b.setCursor(new Cursor(Cursor.HAND_CURSOR));
     }
-    
+
     private void search() {
         String text = txtSearch.getText().trim();
         String filterType = (String) cboFilterType.getSelectedItem();
-        
+
         RowFilter<DefaultTableModel, Object> rf = null;
-        
+
         try {
             if (!text.isEmpty() && !"All".equals(filterType)) {
                 // Both search and filter
@@ -164,33 +157,27 @@ public class FinancialPanel extends JPanel {
         } catch (java.util.regex.PatternSyntaxException e) {
             return;
         }
-        
+
         sorter.setRowFilter(rf);
     }
 
     private void loadTransactions() {
-        model.setRowCount(0);
-        try (Connection conn = DbConnection.getConnection()) {
-            String sql = "SELECT transaction_id, transaction_date, transaction_type, category, " +
-                        "amount, description, payment_method " +
-                        "FROM financial_transactions " +
-                        "ORDER BY transaction_date DESC, transaction_id DESC";
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery(sql);
-            
-            while (rs.next()) {
-                Timestamp timestamp = rs.getTimestamp("transaction_date");
-                String formattedDateTime = timestamp != null ? 
-                    DateTimeFormatter.formatDateTime12H(timestamp) : "N/A";
-                
-                model.addRow(new Object[]{
-                    rs.getInt("transaction_id"),
-                    formattedDateTime,
-                    rs.getString("transaction_type"),
-                    rs.getString("category"),
-                    String.format("₱%.2f", rs.getDouble("amount")),
-                    rs.getString("description"),
-                    rs.getString("payment_method")
+        tableModel.setRowCount(0);
+        try {
+            List<Map<String, Object>> transactions = FinancialModel.getAllTransactions();
+
+            for (Map<String, Object> transaction : transactions) {
+                Date date = (Date) transaction.get("transaction_date");
+                String formattedDate = date != null ? date.toString() : "N/A";
+
+                tableModel.addRow(new Object[]{
+                    transaction.get("transaction_id"),
+                    formattedDate,
+                    transaction.get("transaction_type"),
+                    transaction.get("category"),
+                    String.format("₱%.2f", transaction.get("amount")),
+                    transaction.get("description"),
+                    transaction.get("payment_method")
                 });
             }
         } catch (SQLException e) {
@@ -215,27 +202,6 @@ public class FinancialPanel extends JPanel {
         spinDate.setEditor(dateEditor);
         spinDate.setValue(new java.util.Date());
 
-        // Hour Spinner (1-12)
-        SpinnerNumberModel hourModel = new SpinnerNumberModel(12, 1, 12, 1);
-        JSpinner spinHour = new JSpinner(hourModel);
-
-        // Minute Spinner (0-59)
-        SpinnerNumberModel minuteModel = new SpinnerNumberModel(0, 0, 59, 1);
-        JSpinner spinMinute = new JSpinner(minuteModel);
-        JSpinner.NumberEditor minuteEditor = new JSpinner.NumberEditor(spinMinute, "00");
-        spinMinute.setEditor(minuteEditor);
-
-        // AM/PM Spinner
-        SpinnerListModel ampmModel = new SpinnerListModel(new String[]{"AM", "PM"});
-        JSpinner spinAMPM = new JSpinner(ampmModel);
-
-        // Time panel
-        JPanel timePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-        timePanel.add(spinHour);
-        timePanel.add(new JLabel(":"));
-        timePanel.add(spinMinute);
-        timePanel.add(spinAMPM);
-
         // Other fields
         JComboBox<String> cboType = new JComboBox<>(new String[]{"Income", "Expense"});
         JTextField txtCategory = new JTextField();
@@ -244,12 +210,12 @@ public class FinancialPanel extends JPanel {
         txtDesc.setLineWrap(true);
         txtDesc.setWrapStyleWord(true);
         JComboBox<String> cboMethod = new JComboBox<>(
-            new String[]{"Cash", "Check", "Bank Transfer", "Online Payment", "GCash", "PayMaya", "Other"});
+            new String[]{"Cash", "Check", "Bank Transfer", "Online Payment", "Other"});
+        JTextField txtPayeePayer = new JTextField();
+        JTextField txtReferenceNo = new JTextField();
 
         panel.add(new JLabel("Date:*"));
         panel.add(spinDate);
-        panel.add(new JLabel("Time:*"));
-        panel.add(timePanel);
         panel.add(new JLabel("Type:*"));
         panel.add(cboType);
         panel.add(new JLabel("Category:*"));
@@ -260,41 +226,32 @@ public class FinancialPanel extends JPanel {
         panel.add(new JScrollPane(txtDesc));
         panel.add(new JLabel("Payment Method:*"));
         panel.add(cboMethod);
+        panel.add(new JLabel("Payee/Payer:"));
+        panel.add(txtPayeePayer);
+        panel.add(new JLabel("Reference No:"));
+        panel.add(txtReferenceNo);
 
         // Load data if editing
         if (isEdit) {
-            try (Connection conn = DbConnection.getConnection()) {
-                PreparedStatement ps = conn.prepareStatement(
-                    "SELECT * FROM financial_transactions WHERE transaction_id = ?");
-                ps.setInt(1, id);
-                ResultSet rs = ps.executeQuery();
+            try {
+                Map<String, Object> transaction = FinancialModel.getTransactionById(id);
                 
-                if (rs.next()) {
-                    Timestamp timestamp = rs.getTimestamp("transaction_date");
-                    if (timestamp != null) {
-                        spinDate.setValue(new java.util.Date(timestamp.getTime()));
-                        
-                        Calendar cal = Calendar.getInstance();
-                        cal.setTime(timestamp);
-                        
-                        int hour24 = cal.get(Calendar.HOUR_OF_DAY);
-                        int minute = cal.get(Calendar.MINUTE);
-                        
-                        // Convert to 12-hour format
-                        int hour12 = hour24 % 12;
-                        if (hour12 == 0) hour12 = 12;
-                        String ampm = hour24 < 12 ? "AM" : "PM";
-                        
-                        spinHour.setValue(hour12);
-                        spinMinute.setValue(minute);
-                        spinAMPM.setValue(ampm);
+                if (transaction != null) {
+                    Date date = (Date) transaction.get("transaction_date");
+                    if (date != null) {
+                        spinDate.setValue(new java.util.Date(date.getTime()));
                     }
-                    
-                    cboType.setSelectedItem(rs.getString("transaction_type"));
-                    txtCategory.setText(rs.getString("category"));
-                    txtAmount.setText(String.valueOf(rs.getDouble("amount")));
-                    txtDesc.setText(rs.getString("description"));
-                    cboMethod.setSelectedItem(rs.getString("payment_method"));
+
+                    cboType.setSelectedItem((String) transaction.get("transaction_type"));
+                    txtCategory.setText((String) transaction.get("category"));
+                    txtAmount.setText(String.valueOf(transaction.get("amount")));
+                    txtDesc.setText((String) transaction.get("description"));
+                    String paymentMethod = (String) transaction.get("payment_method");
+                    if (paymentMethod != null) {
+                        cboMethod.setSelectedItem(paymentMethod);
+                    }
+                    txtPayeePayer.setText((String) transaction.get("payee_payer"));
+                    txtReferenceNo.setText((String) transaction.get("reference_number"));
                 }
             } catch (SQLException e) {
                 ErrorHandler.showError(dlg, "loading transaction details", e);
@@ -310,8 +267,8 @@ public class FinancialPanel extends JPanel {
         btnPanel.add(btnSave);
         btnPanel.add(btnCancel);
 
-        btnSave.addActionListener(ae -> saveTransaction(dlg, id, isEdit, spinDate, spinHour, 
-            spinMinute, spinAMPM, cboType, txtCategory, txtAmount, txtDesc, cboMethod));
+        btnSave.addActionListener(ae -> saveTransaction(dlg, id, isEdit, spinDate, 
+            cboType, txtCategory, txtAmount, txtDesc, cboMethod, txtPayeePayer, txtReferenceNo));
         btnCancel.addActionListener(ae -> dlg.dispose());
 
         JPanel wrapper = new JPanel(new BorderLayout(10, 10));
@@ -323,14 +280,16 @@ public class FinancialPanel extends JPanel {
     }
 
     private void saveTransaction(JDialog dlg, Integer id, boolean isEdit, JSpinner spinDate,
-            JSpinner spinHour, JSpinner spinMinute, JSpinner spinAMPM, JComboBox<String> cboType,
-            JTextField txtCategory, JTextField txtAmount, JTextArea txtDesc, JComboBox<String> cboMethod) {
+            JComboBox<String> cboType, JTextField txtCategory, JTextField txtAmount, JTextArea txtDesc, 
+            JComboBox<String> cboMethod, JTextField txtPayeePayer, JTextField txtReferenceNo) {
         
         try {
             // Validation
             String category = txtCategory.getText().trim();
             String amountStr = txtAmount.getText().trim();
             String description = txtDesc.getText().trim();
+            String payeePayer = txtPayeePayer.getText().trim();
+            String referenceNo = txtReferenceNo.getText().trim();
             
             if (category.isEmpty()) {
                 ErrorHandler.showValidationError(dlg, "Category");
@@ -359,77 +318,57 @@ public class FinancialPanel extends JPanel {
                 return;
             }
             
-            // Combine date and time
+            // Get date value (time components are ignored since DB only stores DATE)
             java.util.Date dateValue = (java.util.Date) spinDate.getValue();
-            int hour12 = (Integer) spinHour.getValue();
-            int minute = (Integer) spinMinute.getValue();
-            String ampm = (String) spinAMPM.getValue();
             
-            // Convert to 24-hour format
-            int hour24 = hour12;
-            if ("PM".equals(ampm) && hour12 != 12) {
-                hour24 = hour12 + 12;
-            } else if ("AM".equals(ampm) && hour12 == 12) {
-                hour24 = 0;
-            }
+            // Convert to java.sql.Date (removes time component)
+            java.sql.Date sqlDate = new java.sql.Date(dateValue.getTime());
             
-            Calendar cal = Calendar.getInstance();
-            cal.setTime(dateValue);
-            cal.set(Calendar.HOUR_OF_DAY, hour24);
-            cal.set(Calendar.MINUTE, minute);
-            cal.set(Calendar.SECOND, 0);
-            cal.set(Calendar.MILLISECOND, 0);
-            
-            Timestamp timestamp = new Timestamp(cal.getTimeInMillis());
-            
-            // Save to database
-            try (Connection conn = DbConnection.getConnection()) {
-                String sql;
-                PreparedStatement ps;
-                
+            // Save to database using FinancialModel
+            try {
+                boolean success;
                 if (!isEdit) {
-                    sql = "INSERT INTO financial_transactions (transaction_date, transaction_type, " +
-                          "category, amount, description, payment_method) VALUES (?, ?, ?, ?, ?, ?)";
-                    ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+                    success = FinancialModel.addTransaction(
+                        sqlDate,
+                        (String) cboType.getSelectedItem(),
+                        category,
+                        amount,
+                        description,
+                        (String) cboMethod.getSelectedItem(),
+                        payeePayer,
+                        referenceNo
+                    );
                 } else {
-                    sql = "UPDATE financial_transactions SET transaction_date=?, transaction_type=?, " +
-                          "category=?, amount=?, description=?, payment_method=? WHERE transaction_id=?";
-                    ps = conn.prepareStatement(sql);
+                    success = FinancialModel.updateTransaction(
+                        id,
+                        sqlDate,
+                        (String) cboType.getSelectedItem(),
+                        category,
+                        amount,
+                        description,
+                        (String) cboMethod.getSelectedItem(),
+                        payeePayer,
+                        referenceNo
+                    );
                 }
                 
-                ps.setTimestamp(1, timestamp);
-                ps.setString(2, (String) cboType.getSelectedItem());
-                ps.setString(3, category);
-                ps.setDouble(4, amount);
-                ps.setString(5, description);
-                ps.setString(6, (String) cboMethod.getSelectedItem());
-                
-                if (isEdit) {
-                    ps.setInt(7, id);
+                if (success) {
+                    // Log operation
+                    String newId = id != null ? String.valueOf(id) : "new";
+                    
+                    Logger.logCRUDOperation(
+                        isEdit ? "UPDATE" : "CREATE",
+                        "Financial_Transaction",
+                        newId,
+                        String.format("Type: %s, Amount: %.2f, Category: %s", 
+                            cboType.getSelectedItem(), amount, category)
+                    );
+                    
+                    ErrorHandler.showSuccess(dlg, 
+                        isEdit ? "Transaction updated successfully!" : "Transaction added successfully!");
+                    dlg.dispose();
+                    loadTransactions();
                 }
-                
-                ps.executeUpdate();
-                
-                // Log operation
-                String newId = id != null ? String.valueOf(id) : "new";
-                if (!isEdit) {
-                    ResultSet rs = ps.getGeneratedKeys();
-                    if (rs.next()) newId = String.valueOf(rs.getInt(1));
-                }
-                
-                Logger.logCRUDOperation(
-                    isEdit ? "UPDATE" : "CREATE",
-                    "Financial_Transaction",
-                    newId,
-                    String.format("Type: %s, Amount: %.2f, Category: %s", 
-                        cboType.getSelectedItem(), amount, category)
-                );
-                
-                ErrorHandler.showSuccess(dlg, 
-                    isEdit ? "Transaction updated successfully!" : "Transaction added successfully!");
-                dlg.dispose();
-                loadTransactions();
-                
             } catch (SQLException e) {
                 ErrorHandler.showError(dlg, "saving transaction", e);
             }
@@ -445,12 +384,12 @@ public class FinancialPanel extends JPanel {
             ErrorHandler.showWarning(this, "Please select a transaction to delete.");
             return;
         }
-        
+
         int rowModel = table.convertRowIndexToModel(r);
-        int id = (Integer) model.getValueAt(rowModel, 0);
-        String dateTime = (String) model.getValueAt(rowModel, 1);
-        String type = (String) model.getValueAt(rowModel, 2);
-        
+        int id = (Integer) tableModel.getValueAt(rowModel, 0);
+        String dateTime = (String) tableModel.getValueAt(rowModel, 1);
+        String type = (String) tableModel.getValueAt(rowModel, 2);
+
         if (!ErrorHandler.confirm(this,
                 "Delete this transaction?\n\n" +
                 "Date/Time: " + dateTime + "\n" +
@@ -458,19 +397,17 @@ public class FinancialPanel extends JPanel {
                 "Confirm Delete")) {
             return;
         }
-        
-        try (Connection conn = DbConnection.getConnection()) {
-            PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM financial_transactions WHERE transaction_id = ?");
-            ps.setInt(1, id);
-            ps.executeUpdate();
-            
-            Logger.logCRUDOperation("DELETE", "Financial_Transaction", String.valueOf(id),
-                String.format("Type: %s, DateTime: %s", type, dateTime));
-            
-            ErrorHandler.showSuccess(this, "Transaction deleted successfully!");
-            loadTransactions();
-            
+
+        try {
+            boolean success = FinancialModel.deleteTransaction(id);
+
+            if (success) {
+                Logger.logCRUDOperation("DELETE", "Financial_Transaction", String.valueOf(id),
+                    String.format("Type: %s, DateTime: %s", type, dateTime));
+
+                ErrorHandler.showSuccess(this, "Transaction deleted successfully!");
+                loadTransactions();
+            }
         } catch (SQLException e) {
             ErrorHandler.showError(this, "deleting transaction", e);
         }

@@ -10,7 +10,7 @@ import model.User;
 import java.awt.*;
 import java.sql.*;
 import java.util.List;
-import db.DbConnection;
+import java.util.Map;
 import theme.Theme;
 
 public class HouseholdPanel extends JPanel {
@@ -23,49 +23,49 @@ public class HouseholdPanel extends JPanel {
 
     public HouseholdPanel() {
         setLayout(new BorderLayout(10, 10));
-        setBackground(Theme.PRIMARY_LIGHT);
 
-        // Check if user is staff
+        // Check if user is staff (role_id = 2) - staff can only view
         User current = SessionManager.getInstance().getCurrentUser();
         if (current != null && "2".equals(current.getRoleId())) {
             isStaff = true;
         }
 
-        // Panel title
-        JLabel titleLabel = new JLabel("🏠 Household Management");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        titleLabel.setForeground(Theme.PRIMARY);
-        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        // Search Panel
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        searchPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Search Household"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        searchPanel.setBackground(Theme.PRIMARY_LIGHT);
 
-        // Top toolbar
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        top.setBackground(Theme.PRIMARY_LIGHT);
-        
-        JLabel lblSearch = new JLabel("Search:");
-        lblSearch.setForeground(Theme.TEXT_PRIMARY);
         txtSearch = new JTextField(30);
         btnRefresh = new JButton("🔄 Refresh");
-        btnAdd = new JButton("+ Add Household");
-        btnEdit = new JButton("✏ Edit Household");
-        btnDelete = new JButton("🗑 Delete Household");
-        btnManageMembers = new JButton("👥 Manage Members");
 
         styleButton(btnRefresh);
+
+        searchPanel.add(new JLabel("Search:"));
+        searchPanel.add(txtSearch);
+        searchPanel.add(btnRefresh);
+
+        // Action Buttons Panel
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        actionPanel.setBackground(Theme.PRIMARY_LIGHT);
+
+        btnAdd = new JButton("+ Add Household");
+        btnEdit = new JButton("✏ Edit Household");
+        btnManageMembers = new JButton("👥 Manage Members");
+        btnDelete = new JButton("🗑 Delete Household");
+
         styleButton(btnAdd);
         styleButton(btnEdit);
-        styleButton(btnDelete);
         styleButton(btnManageMembers);
+        styleButton(btnDelete);
 
-        top.add(lblSearch);
-        top.add(txtSearch);
-        top.add(btnRefresh);
-        top.add(Box.createHorizontalStrut(20));
-        top.add(btnAdd);
-        top.add(btnEdit);
-        top.add(btnManageMembers);
-        top.add(btnDelete);
+        actionPanel.add(btnAdd);
+        actionPanel.add(btnEdit);
+        actionPanel.add(btnManageMembers);
+        actionPanel.add(btnDelete);
 
-        // Staff can only view
+        // Staff can only view - disable edit buttons
         if (isStaff) {
             btnAdd.setEnabled(false);
             btnEdit.setEnabled(false);
@@ -73,16 +73,16 @@ public class HouseholdPanel extends JPanel {
             btnManageMembers.setEnabled(false);
         }
 
-        // Combine title and toolbar
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setBackground(Theme.PRIMARY_LIGHT);
-        headerPanel.add(titleLabel, BorderLayout.NORTH);
-        headerPanel.add(top, BorderLayout.CENTER);
-        add(headerPanel, BorderLayout.NORTH);
+        // Top Panel (contains search and actions)
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(searchPanel, BorderLayout.NORTH);
+        topPanel.add(actionPanel, BorderLayout.CENTER);
+
+        add(topPanel, BorderLayout.NORTH);
 
         // Table
         tableModel = new DefaultTableModel(
-            new Object[]{"ID", "Family No", "Head", "Address", "Income", "Members"}, 0) {
+            new Object[]{"ID", "Family No", "Head", "Address", "Income", "Family Members"}, 0) {
             public boolean isCellEditable(int row, int column) { return false; }
         };
 
@@ -90,8 +90,13 @@ public class HouseholdPanel extends JPanel {
         sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.getTableHeader().setReorderingAllowed(false);
         
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Households List"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        add(scrollPane, BorderLayout.CENTER);
 
         // Event handlers
         btnRefresh.addActionListener(e -> loadHouseholds());
@@ -117,9 +122,17 @@ public class HouseholdPanel extends JPanel {
         });
 
         txtSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { search(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { search(); }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { search(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
+
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
+
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
         });
 
         loadHouseholds();
@@ -144,40 +157,22 @@ public class HouseholdPanel extends JPanel {
 
     private void loadHouseholds() {
         tableModel.setRowCount(0);
-        try (Connection conn = DbConnection.getConnection()) {
-            String sql = "SELECT h.household_id, h.family_no, " +
-                        "CONCAT(COALESCE(r.first_name, ''), ' ', COALESCE(r.middle_name, ''), ' ', COALESCE(r.last_name, '')) AS head_name, " +
-                        "h.address, h.income, " +
-                        "(SELECT COUNT(*) FROM residents r2 WHERE r2.household_id = h.household_id) as member_count " +
-                        "FROM households h " +
-                        "LEFT JOIN residents r ON h.household_id = r.household_id AND r.resident_id = " +
-                        "(SELECT MIN(r3.resident_id) FROM residents r3 WHERE r3.household_id = h.household_id) " +
-                        "ORDER BY h.household_id";
-            Statement st = conn.createStatement();
-            ResultSet rs = st.executeQuery(sql);
-            boolean hasData = false;
-            while (rs.next()) {
-                hasData = true;
-                String headName = rs.getString("head_name");
-                
-                // Show placeholder if no head assigned yet
-                if (headName == null || headName.trim().isEmpty()) {
-                    headName = "Not assigned yet";
-                } else {
-                    headName = headName.trim();
-                }
-                
-                tableModel.addRow(new Object[]{
-                    rs.getInt("household_id"),
-                    rs.getInt("family_no"),
-                    headName,
-                    rs.getString("address"),
-                    rs.getDouble("income"),
-                    rs.getInt("member_count")
-                });
-            }
-            if (!hasData) {
+        try {
+            List<Map<String, Object>> households = HouseholdModel.getAllWithDetails();
+            
+            if (households.isEmpty()) {
                 tableModel.addRow(new Object[]{"", "", "No households found", "Click 'Add Household' to create a new household", "", ""});
+            } else {
+                for (Map<String, Object> household : households) {
+                    tableModel.addRow(new Object[]{
+                        household.get("household_id"),
+                        household.get("family_no"),
+                        household.get("head_name"),
+                        household.get("address"),
+                        household.get("income"),
+                        household.get("member_count")
+                    });
+                }
             }
         } catch (SQLException e) {
             util.ErrorHandler.showError(this, "loading households", e);
@@ -203,15 +198,12 @@ public class HouseholdPanel extends JPanel {
         panel.add(txtIncome);
 
         if (isEdit) {
-            try (Connection conn = DbConnection.getConnection()) {
-                String sql = "SELECT household_id, family_no, address, income FROM households WHERE household_id = ?";
-                PreparedStatement ps = conn.prepareStatement(sql);
-                ps.setInt(1, id);
-                ResultSet rs = ps.executeQuery();
-                if (rs.next()) {
-                    txtFamilyNo.setText(String.valueOf(rs.getInt("family_no")));
-                    txtAddress.setText(rs.getString("address"));
-                    txtIncome.setText(String.valueOf(rs.getDouble("income")));
+            try {
+                HouseholdModel household = HouseholdModel.getById(id);
+                if (household != null) {
+                    txtFamilyNo.setText(String.valueOf(household.getFamilyNo()));
+                    txtAddress.setText(household.getAddress());
+                    txtIncome.setText(String.valueOf(household.getIncome()));
                 }
             } catch (SQLException e) {
                 util.ErrorHandler.showError(this, "loading household details", e);
@@ -285,40 +277,39 @@ public class HouseholdPanel extends JPanel {
                 }
                 
                 // All validation passed, proceed with save
-                try (Connection conn = DbConnection.getConnection()) {
+                try {
                     if (!isEdit) {
-                        String sql = "INSERT INTO households (family_no, address, income) VALUES (?, ?, ?)";
-                        PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-                        ps.setInt(1, familyNo);
-                        ps.setString(2, address);
-                        ps.setDouble(3, income);
-                        ps.executeUpdate();
+                        HouseholdModel household = new HouseholdModel();
+                        household.setFamilyNo(familyNo);
+                        household.setAddress(address);
+                        household.setIncome(income);
+                        household.setHouseholdHeadId(null);
                         
-                        ResultSet rs = ps.getGeneratedKeys();
-                        String newId = rs.next() ? String.valueOf(rs.getInt(1)) : "unknown";
-                        
-                        // Log user activity
-                        util.Logger.logCRUDOperation("CREATE", "Household", newId, 
-                            String.format("Family No: %d, Address: %s", familyNo, address));
-                        
-                        util.ErrorHandler.showSuccess(dialog, 
-                            "Household added successfully!\n\n" +
-                            "Next step: Click 'Manage Members' to add household members.\n" +
-                            "The first member added will be the household head.");
+                        if (household.create()) {
+                            // Log user activity
+                            util.Logger.logCRUDOperation("CREATE", "Household", String.valueOf(household.getHouseholdId()), 
+                                String.format("Family No: %d, Address: %s", familyNo, address));
+                            
+                            util.ErrorHandler.showSuccess(dialog, 
+                                "Household added successfully!\n\n" +
+                                "Next step: Click 'Manage Members' to add household members.\n" +
+                                "The first member added will be the household head.");
+                        }
                     } else {
-                        String sql = "UPDATE households SET family_no=?, address=?, income=? WHERE household_id=?";
-                        PreparedStatement ps = conn.prepareStatement(sql);
-                        ps.setInt(1, familyNo);
-                        ps.setString(2, address);
-                        ps.setDouble(3, income);
-                        ps.setInt(4, id);
-                        ps.executeUpdate();
-                        
-                        // Log user activity
-                        util.Logger.logCRUDOperation("UPDATE", "Household", String.valueOf(id),
-                            String.format("Family No: %d, Address: %s", familyNo, address));
-                        
-                        util.ErrorHandler.showSuccess(dialog, "Household updated successfully!");
+                        HouseholdModel household = HouseholdModel.getById(id);
+                        if (household != null) {
+                            household.setFamilyNo(familyNo);
+                            household.setAddress(address);
+                            household.setIncome(income);
+                            
+                            if (household.update()) {
+                                // Log user activity
+                                util.Logger.logCRUDOperation("UPDATE", "Household", String.valueOf(id),
+                                    String.format("Family No: %d, Address: %s", familyNo, address));
+                                
+                                util.ErrorHandler.showSuccess(dialog, "Household updated successfully!");
+                            }
+                        }
                     }
                     dialog.dispose();
                     loadHouseholds();
@@ -504,11 +495,9 @@ public class HouseholdPanel extends JPanel {
 
         // Check if this is the first member (should be head)
         boolean isFirstMember = false;
-        try (Connection conn = DbConnection.getConnection()) {
-            PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) as cnt FROM residents WHERE household_id = ?");
-            ps.setInt(1, householdId);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next() && rs.getInt("cnt") == 0) {
+        try {
+            int memberCount = HouseholdModel.getMemberCount(householdId);
+            if (memberCount == 0) {
                 isFirstMember = true;
                 chkIsHead.setSelected(true);
                 chkIsHead.setEnabled(false);
@@ -682,23 +671,18 @@ public class HouseholdPanel extends JPanel {
             JOptionPane.YES_NO_OPTION);
             
         if (confirm == JOptionPane.YES_OPTION) {
-            try (Connection conn = DbConnection.getConnection()) {
-                // Delete members first
-                PreparedStatement ps = conn.prepareStatement("DELETE FROM residents WHERE household_id = ?");
-                ps.setInt(1, id);
-                int membersDeleted = ps.executeUpdate();
+            try {
+                int membersCount = HouseholdModel.getMemberCount(id);
+                boolean success = HouseholdModel.deleteHouseholdAndMembers(id);
                 
-                // Delete household
-                ps = conn.prepareStatement("DELETE FROM households WHERE household_id = ?");
-                ps.setInt(1, id);
-                ps.executeUpdate();
-                
-                // Log user activity
-                util.Logger.logCRUDOperation("DELETE", "Household", String.valueOf(id),
-                    String.format("Family No: %s, Members deleted: %d", familyNo, membersDeleted));
-                
-                JOptionPane.showMessageDialog(this, "Household deleted");
-                loadHouseholds();
+                if (success) {
+                    // Log user activity
+                    util.Logger.logCRUDOperation("DELETE", "Household", String.valueOf(id),
+                        String.format("Family No: %s, Members deleted: %d", familyNo, membersCount));
+                    
+                    JOptionPane.showMessageDialog(this, "Household deleted");
+                    loadHouseholds();
+                }
             } catch (SQLException e) {
                 util.ErrorHandler.showError(this, "deleting household", e);
             }

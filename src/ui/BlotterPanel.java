@@ -6,62 +6,117 @@ import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.*;
-import db.DbConnection;
+import java.util.List;
+import model.BlotterModel;
 import theme.Theme;
 
 public class BlotterPanel extends JPanel {
     private JTable table;
-    private DefaultTableModel model;
+    private DefaultTableModel tableModel;
     private JButton btnAdd, btnEdit, btnDelete, btnRefresh;
     private JTextField txtSearch;
     private TableRowSorter<DefaultTableModel> sorter;
 
-    public BlotterPanel(){
-        setLayout(new BorderLayout(10,10));
+    public BlotterPanel() {
+        setLayout(new BorderLayout(10, 10));
         
-        // Panel title
-        JLabel titleLabel = new JLabel("🚨 Blotter / Incident Reports");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
-        titleLabel.setForeground(Theme.PRIMARY);
-        titleLabel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+        // Search Panel
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        searchPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Search Incident"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        searchPanel.setBackground(Theme.PRIMARY_LIGHT);
         
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        
-        JLabel lblSearch = new JLabel("Search:");
         txtSearch = new JTextField(30);
-        btnRefresh = new JButton("🔄 Refresh"); btnAdd = new JButton("+ Add"); btnEdit = new JButton("✏ Edit"); btnDelete = new JButton("🗑 Delete");
-        style(btnRefresh); style(btnAdd); style(btnEdit); style(btnDelete);
+        btnRefresh = new JButton("🔄 Refresh");
         
-        top.add(lblSearch);
-        top.add(txtSearch);
-        top.add(btnRefresh); top.add(btnAdd); top.add(btnEdit); top.add(btnDelete);
+        styleButton(btnRefresh);
         
-        // Combine title and toolbar
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.add(titleLabel, BorderLayout.NORTH);
-        headerPanel.add(top, BorderLayout.CENTER);
-        add(headerPanel, BorderLayout.NORTH);
+        searchPanel.add(new JLabel("Search:"));
+        searchPanel.add(txtSearch);
+        searchPanel.add(btnRefresh);
+        
+        // Action Buttons Panel
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        actionPanel.setBackground(Theme.PRIMARY_LIGHT);
+        
+        btnAdd = new JButton("+ Add Incident");
+        btnEdit = new JButton("✏ Edit Incident");
+        btnDelete = new JButton("🗑 Delete Incident");
+        
+        styleButton(btnAdd);
+        styleButton(btnEdit);
+        styleButton(btnDelete);
+        
+        actionPanel.add(btnAdd);
+        actionPanel.add(btnEdit);
+        actionPanel.add(btnDelete);
+        
+        // Top Panel (contains search and actions)
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(searchPanel, BorderLayout.NORTH);
+        topPanel.add(actionPanel, BorderLayout.CENTER);
+        
+        add(topPanel, BorderLayout.NORTH);
 
-        model = new DefaultTableModel(new String[]{"ID","Case#","Type","Date","Time","Location","Complainant","Respondent","Status"},0){ @Override public boolean isCellEditable(int r,int c){return false;} };
-        table = new JTable(model);
-        sorter = new TableRowSorter<>(model);
+        // Table
+        tableModel = new DefaultTableModel(
+            new Object[]{"ID", "Case#", "Type", "Date", "Time", "Location", "Complainant", "Respondent", "Status"}, 0) {
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        table = new JTable(tableModel);
+        sorter = new TableRowSorter<>(tableModel);
         table.setRowSorter(sorter);
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.getTableHeader().setReorderingAllowed(false);
 
-        btnRefresh.addActionListener(e->loadIncidents());
-        btnAdd.addActionListener(e->openDialog(null));
-        btnEdit.addActionListener(e->{ int r = table.getSelectedRow(); if (r==-1){ JOptionPane.showMessageDialog(this,"Select incident"); return;} openDialog((Integer)table.getValueAt(r,0)); });
-        btnDelete.addActionListener(e->deleteSelected());
-        
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Blotter / Incident Reports List"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        add(scrollPane, BorderLayout.CENTER);
+
+        // Event handlers
+        btnRefresh.addActionListener(e -> loadIncidents());
+        btnAdd.addActionListener(e -> openDialog(null));
+        btnEdit.addActionListener(e -> {
+            int r = table.getSelectedRow();
+            if (r == -1) {
+                JOptionPane.showMessageDialog(this, "Select incident");
+                return;
+            }
+            openDialog((Integer) table.getValueAt(r, 0));
+        });
+        btnDelete.addActionListener(e -> deleteSelected());
+
         txtSearch.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            public void changedUpdate(javax.swing.event.DocumentEvent e) { search(); }
-            public void removeUpdate(javax.swing.event.DocumentEvent e) { search(); }
-            public void insertUpdate(javax.swing.event.DocumentEvent e) { search(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
+
+            public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
+
+            public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                search();
+            }
         });
 
         loadIncidents();
     }
-    
+
+    private void styleButton(JButton b) {
+        b.setBackground(Theme.PRIMARY);
+        b.setForeground(Color.WHITE);
+        b.setFocusPainted(false);
+        b.setBorderPainted(false);
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    }
+
     private void search() {
         String text = txtSearch.getText().trim();
         if (text.isEmpty()) {
@@ -71,22 +126,30 @@ public class BlotterPanel extends JPanel {
         }
     }
 
-    private void style(JButton b){ b.setBackground(Theme.PRIMARY); b.setForeground(Color.WHITE); b.setFocusPainted(false); b.setBorderPainted(false); }
-
-    private void loadIncidents(){
-        model.setRowCount(0);
-        try (Connection conn = DbConnection.getConnection()){
-            String sql = "SELECT incident_id, case_number, incident_type, incident_date, incident_time, incident_location, complainant_name, respondent_name, incident_status FROM blotter_incidents ORDER BY incident_date DESC";
-            Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql);
-            boolean hasData = false;
-            while (rs.next()){
-                hasData = true;
-                model.addRow(new Object[]{ rs.getInt("incident_id"), rs.getString("case_number"), rs.getString("incident_type"), rs.getDate("incident_date"), rs.getTime("incident_time"), rs.getString("incident_location"), rs.getString("complainant_name"), rs.getString("respondent_name"), rs.getString("incident_status") });
+    private void loadIncidents() {
+        tableModel.setRowCount(0);
+        try {
+            List<BlotterModel.Incident> incidents = BlotterModel.getAllIncidents();
+            if (incidents.isEmpty()) {
+                tableModel.addRow(new Object[]{"", "No incidents found", "Click 'Add' to create a new incident", "", "", "", "", "", ""});
+            } else {
+                for (BlotterModel.Incident incident : incidents) {
+                    tableModel.addRow(new Object[]{
+                        incident.getIncidentId(),
+                        incident.getCaseNumber(),
+                        incident.getIncidentType(),
+                        incident.getIncidentDate(),
+                        incident.getIncidentTime(),
+                        incident.getLocation(),
+                        incident.getComplainant(),
+                        incident.getRespondent(),
+                        incident.getStatus()
+                    });
+                }
             }
-            if (!hasData) {
-                model.addRow(new Object[]{"", "No incidents found", "Click 'Add' to create a new incident", "", "", "", "", "", ""});
-            }
-        } catch (SQLException e){ JOptionPane.showMessageDialog(this, "Error loading incidents: "+e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE); }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error loading incidents: " + e.getMessage(), "DB Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void openDialog(Integer id){
@@ -96,9 +159,27 @@ public class BlotterPanel extends JPanel {
         JTextField txtDate = new JTextField("yyyy-MM-dd"); JTextField txtTime = new JTextField("HH:mm:ss"); JTextField txtLocation = new JTextField(); JTextField txtComplainant = new JTextField(); JTextField txtRespondent = new JTextField(); JComboBox<String> cboStatus = new JComboBox<>(new String[]{"Pending","Under Investigation","For Mediation","Resolved","Closed","Escalated"});
         p.add(new JLabel("Case Number:")); p.add(txtCase); p.add(new JLabel("Type:")); p.add(cboType); p.add(new JLabel("Date:")); p.add(txtDate); p.add(new JLabel("Time:")); p.add(txtTime); p.add(new JLabel("Location:")); p.add(txtLocation); p.add(new JLabel("Complainant:")); p.add(txtComplainant); p.add(new JLabel("Respondent:")); p.add(txtRespondent); p.add(new JLabel("Status:")); p.add(cboStatus);
 
-        if (isEdit){ try (Connection conn = DbConnection.getConnection()){ PreparedStatement ps = conn.prepareStatement("SELECT * FROM blotter_incidents WHERE incident_id = ?"); ps.setInt(1,id); ResultSet rs = ps.executeQuery(); if (rs.next()){ txtCase.setText(rs.getString("case_number")); cboType.setSelectedItem(rs.getString("incident_type")); Date d = rs.getDate("incident_date"); if (d!=null) txtDate.setText(d.toString()); Time t = rs.getTime("incident_time"); if (t!=null) txtTime.setText(t.toString()); txtLocation.setText(rs.getString("incident_location")); txtComplainant.setText(rs.getString("complainant_name")); txtRespondent.setText(rs.getString("respondent_name")); cboStatus.setSelectedItem(rs.getString("incident_status")); } } catch (SQLException e){ JOptionPane.showMessageDialog(this,"Error loading incident: "+e.getMessage()); } }
+        if (isEdit){ 
+            try {
+                BlotterModel.Incident incident = BlotterModel.getIncidentById(id);
+                if (incident != null) {
+                    txtCase.setText(incident.getCaseNumber()); 
+                    cboType.setSelectedItem(incident.getIncidentType()); 
+                    Date d = incident.getIncidentDate(); 
+                    if (d!=null) txtDate.setText(d.toString()); 
+                    Time t = incident.getIncidentTime(); 
+                    if (t!=null) txtTime.setText(t.toString()); 
+                    txtLocation.setText(incident.getLocation()); 
+                    txtComplainant.setText(incident.getComplainant()); 
+                    txtRespondent.setText(incident.getRespondent()); 
+                    cboStatus.setSelectedItem(incident.getStatus());
+                }
+            } catch (Exception e){ 
+                JOptionPane.showMessageDialog(this,"Error loading incident: "+e.getMessage()); 
+            } 
+        }
 
-        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT)); JButton save = new JButton("Save"); JButton cancel = new JButton("Cancel"); style(save); style(cancel); btns.add(save); btns.add(cancel);
+        JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT)); JButton save = new JButton("Save"); JButton cancel = new JButton("Cancel"); styleButton(save); styleButton(cancel); btns.add(save); btns.add(cancel);
         save.addActionListener(ae->{ 
             // Validate required fields
             String caseNum = txtCase.getText().trim();
@@ -139,7 +220,7 @@ public class BlotterPanel extends JPanel {
                 return;
             }
             
-            try (Connection conn = DbConnection.getConnection()){ 
+            try { 
                 Date incidentDate = null;
                 Time incidentTime = null;
                 
@@ -159,38 +240,25 @@ public class BlotterPanel extends JPanel {
                     return;
                 }
                 
+                boolean success;
                 if (!isEdit){ 
-                    String sql = "INSERT INTO blotter_incidents (case_number, incident_type, incident_date, incident_time, incident_location, complainant_name, respondent_name, incident_description, incident_status) VALUES (?,?,?,?,?,?,?,?,?)"; 
-                    PreparedStatement ps = conn.prepareStatement(sql); 
-                    ps.setString(1, caseNum); 
-                    ps.setString(2, (String)cboType.getSelectedItem()); 
-                    ps.setDate(3, incidentDate); 
-                    ps.setTime(4, incidentTime); 
-                    ps.setString(5, location); 
-                    ps.setString(6, complainant); 
-                    ps.setString(7, respondent); 
-                    ps.setString(8, ""); 
-                    ps.setString(9, (String)cboStatus.getSelectedItem()); 
-                    ps.executeUpdate(); 
-                    JOptionPane.showMessageDialog(dlg,"✓ Incident added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE); 
+                    success = BlotterModel.addIncident(caseNum, (String)cboType.getSelectedItem(), 
+                        incidentDate, incidentTime, location, complainant, respondent, 
+                        (String)cboStatus.getSelectedItem());
+                    if (success) {
+                        JOptionPane.showMessageDialog(dlg,"✓ Incident added successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    }
                 } else { 
-                    String sql = "UPDATE blotter_incidents SET case_number=?, incident_type=?, incident_date=?, incident_time=?, incident_location=?, complainant_name=?, respondent_name=?, incident_status=? WHERE incident_id=?"; 
-                    PreparedStatement ps = conn.prepareStatement(sql); 
-                    ps.setString(1, caseNum); 
-                    ps.setString(2, (String)cboType.getSelectedItem()); 
-                    ps.setDate(3, incidentDate); 
-                    ps.setTime(4, incidentTime); 
-                    ps.setString(5, location); 
-                    ps.setString(6, complainant); 
-                    ps.setString(7, respondent); 
-                    ps.setString(8, (String)cboStatus.getSelectedItem()); 
-                    ps.setInt(9, id); 
-                    ps.executeUpdate(); 
-                    JOptionPane.showMessageDialog(dlg,"✓ Incident updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE); 
+                    success = BlotterModel.updateIncident(id, caseNum, (String)cboType.getSelectedItem(), 
+                        incidentDate, incidentTime, location, complainant, respondent, 
+                        (String)cboStatus.getSelectedItem());
+                    if (success) {
+                        JOptionPane.showMessageDialog(dlg,"✓ Incident updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    }
                 } 
                 dlg.dispose(); 
                 loadIncidents(); 
-            } catch (SQLException e){ 
+            } catch (Exception e){ 
                 JOptionPane.showMessageDialog(dlg,"Database error: "+e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE); 
             } 
         });
@@ -199,5 +267,22 @@ public class BlotterPanel extends JPanel {
         JPanel wrapper = new JPanel(new BorderLayout()); wrapper.add(p, BorderLayout.CENTER); wrapper.add(btns, BorderLayout.SOUTH); dlg.getContentPane().add(wrapper); dlg.pack(); dlg.setLocationRelativeTo(this); dlg.setVisible(true);
     }
 
-    private void deleteSelected(){ int r = table.getSelectedRow(); if (r==-1){ JOptionPane.showMessageDialog(this,"Select an incident"); return;} int id = (Integer)table.getValueAt(r,0); int c = JOptionPane.showConfirmDialog(this,"Delete incident?","Confirm",JOptionPane.YES_NO_OPTION); if (c!=JOptionPane.YES_OPTION) return; try (Connection conn = DbConnection.getConnection()){ PreparedStatement ps = conn.prepareStatement("DELETE FROM blotter_incidents WHERE incident_id = ?"); ps.setInt(1,id); ps.executeUpdate(); loadIncidents(); } catch (SQLException e){ JOptionPane.showMessageDialog(this,"DB error: "+e.getMessage()); } }
+    private void deleteSelected() {
+        int r = table.getSelectedRow();
+        if (r == -1) {
+            JOptionPane.showMessageDialog(this, "Select an incident");
+            return;
+        }
+        int id = (Integer) table.getValueAt(r, 0);
+        int c = JOptionPane.showConfirmDialog(this, "Delete incident?", "Confirm", JOptionPane.YES_NO_OPTION);
+        if (c != JOptionPane.YES_OPTION) return;
+        try {
+            boolean success = BlotterModel.deleteIncident(id);
+            if (success) {
+                loadIncidents();
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "DB error: " + e.getMessage());
+        }
+    }
 }
