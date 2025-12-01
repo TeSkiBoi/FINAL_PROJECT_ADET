@@ -6,7 +6,6 @@ import db.DbConnection;
 import java.awt.*;
 import java.sql.*;
 import java.awt.event.*;
-import java.util.Map;
 import model.SessionManager;
 import model.User;
 import model.UserModel;
@@ -16,6 +15,8 @@ import model.ResidentModel;
 import theme.Theme;
 
 public class Dashboard extends JFrame {
+    private static final long serialVersionUID = 1L;
+    
     private JPanel sidePanel, mainPanel;
     private JButton btnDashboard, btnLogout, btnFinancial, btnResidents, btnHouseholds, btnUsers, btnLogs, btnChildren, btnSenior, btnAdult, btnRoles, btnProjects, btnOfficials, btnBlotter;
 
@@ -264,39 +265,6 @@ public class Dashboard extends JFrame {
         return card;
     }
 
-    private void loadCategoryStats(JPanel panel) {
-        try {
-            Map<String, Integer> categoryStats = ProjectModel.getProjectCountByCategory();
-
-            for (Map.Entry<String, Integer> entry : categoryStats.entrySet()) {
-                String category = entry.getKey();
-                int count = entry.getValue();
-
-                JPanel categoryRow = new JPanel(new BorderLayout(10, 0));
-                categoryRow.setBackground(Theme.PRIMARY_LIGHT);
-
-                JLabel categoryLabel = new JLabel(category);
-                categoryLabel.setFont(new Font("Arial", Font.PLAIN, 14));
-                categoryLabel.setForeground(Theme.PRIMARY);
-
-                JLabel countLabel = new JLabel(String.valueOf(count));
-                countLabel.setFont(new Font("Arial", Font.BOLD, 14));
-                countLabel.setForeground(Theme.PRIMARY);
-
-                categoryRow.add(categoryLabel, BorderLayout.WEST);
-                categoryRow.add(countLabel, BorderLayout.EAST);
-
-                panel.add(categoryRow);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(this,
-                "Error loading category statistics: " + e.getMessage(),
-                "Database Error",
-                JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
     private int loadTotalProjects() {
         try {
             return ProjectModel.getProjectCount();
@@ -361,9 +329,9 @@ public class Dashboard extends JFrame {
     }
 
     private int loadTotalUsers() {
-        try (Connection conn = DbConnection.getConnection()) {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM users WHERE status = 'Active'");
+        try (Connection conn = DbConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM users WHERE status = 'Active'")) {
             if (rs.next()) {
                 return rs.getInt("count");
             }
@@ -374,9 +342,9 @@ public class Dashboard extends JFrame {
     }
 
     private int loadTotalOfficials() {
-        try (Connection conn = DbConnection.getConnection()) {
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM barangay_officials WHERE is_active = 'Yes'");
+        try (Connection conn = DbConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as count FROM barangay_officials WHERE is_active = 'Yes'")) {
             if (rs.next()) {
                 return rs.getInt("count");
             }
