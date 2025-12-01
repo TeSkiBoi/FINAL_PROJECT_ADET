@@ -17,7 +17,7 @@ import theme.Theme;
 
 public class Dashboard extends JFrame {
     private JPanel sidePanel, mainPanel;
-    private JButton btnHome, btnLogout, btnFinancial, btnResidents, btnHouseholds, btnUsers, btnLogs, btnChildren, btnSenior, btnAdult, btnRoles, btnProjects, btnOfficials, btnBlotter;
+    private JButton btnDashboard, btnLogout, btnFinancial, btnResidents, btnHouseholds, btnUsers, btnLogs, btnChildren, btnSenior, btnAdult, btnRoles, btnProjects, btnOfficials, btnBlotter;
 
     public static void main(String[] args) {
         EventQueue.invokeLater(() -> {
@@ -54,7 +54,7 @@ public class Dashboard extends JFrame {
         boolean isStaff = (current != null && "2".equals(current.getRoleId()));
 
         // Create buttons
-        btnHome = createMenuButton("Home", e -> showHomePanel());
+        btnDashboard = createMenuButton("Dashboard", e -> showHomePanel());
         btnResidents = createMenuButton("Residents", e -> showResidentsPanel());
         btnHouseholds = createMenuButton("Households", e -> showHouseholdsPanel());
         btnChildren = createMenuButton("Children", e -> showChildrenPanel());
@@ -85,53 +85,52 @@ public class Dashboard extends JFrame {
         });
 
         // Build menu based on role
+        sidePanel.setLayout(new BoxLayout(sidePanel, BoxLayout.Y_AXIS));
+        
         if (isAdmin) {
             // Admin sees everything
-            sidePanel.setLayout(new GridLayout(16, 1, 8, 8));
-            sidePanel.add(btnHome);
-            sidePanel.add(new JSeparator());
-            sidePanel.add(new JLabel("Records")); // Section label
-            sidePanel.add(btnResidents);
-            sidePanel.add(btnHouseholds);
-            sidePanel.add(btnChildren);
-            sidePanel.add(btnSenior);
-            sidePanel.add(btnAdult);
-            sidePanel.add(new JSeparator());
-            sidePanel.add(new JLabel("Features")); // Section label
-            sidePanel.add(btnProjects);
-            sidePanel.add(btnFinancial);
-            sidePanel.add(btnOfficials);
-            sidePanel.add(btnBlotter);
-            sidePanel.add(new JSeparator());
-            sidePanel.add(new JLabel("Admin")); // Section label
-            sidePanel.add(btnUsers);
-            sidePanel.add(btnRoles);
-            sidePanel.add(btnLogs);
-            sidePanel.add(new JPanel()); // Spacer
-            sidePanel.add(btnLogout);
+            addButton(sidePanel, btnDashboard);
+            addSpacer(sidePanel, 10);
+            addSectionLabel(sidePanel, "RECORDS");
+            addButton(sidePanel, btnResidents);
+            addButton(sidePanel, btnHouseholds);
+            addButton(sidePanel, btnChildren);
+            addButton(sidePanel, btnSenior);
+            addButton(sidePanel, btnAdult);
+            addSpacer(sidePanel, 10);
+            addSectionLabel(sidePanel, "FEATURES");
+            addButton(sidePanel, btnProjects);
+            addButton(sidePanel, btnFinancial);
+            addButton(sidePanel, btnOfficials);
+            addButton(sidePanel, btnBlotter);
+            addSpacer(sidePanel, 10);
+            addSectionLabel(sidePanel, "ADMINISTRATION");
+            addButton(sidePanel, btnUsers);
+            addButton(sidePanel, btnRoles);
+            addButton(sidePanel, btnLogs);
+            sidePanel.add(Box.createVerticalGlue()); // Push logout to bottom
+            addButton(sidePanel, btnLogout);
         } else if (isStaff) {
             // Staff sees limited menu - view-only for records, editable for features
-            sidePanel.setLayout(new GridLayout(14, 1, 8, 8));
-            sidePanel.add(btnHome);
-            sidePanel.add(new JSeparator());
-            sidePanel.add(new JLabel("Records (View Only)")); // Section label
-            sidePanel.add(btnResidents);
-            sidePanel.add(btnHouseholds);
-            sidePanel.add(btnChildren);
-            sidePanel.add(btnSenior);
-            sidePanel.add(btnAdult);
-            sidePanel.add(new JSeparator());
-            sidePanel.add(new JLabel("Features (Editable)")); // Section label
-            sidePanel.add(btnProjects);
-            sidePanel.add(btnFinancial);
-            sidePanel.add(new JPanel()); // Spacer
-            sidePanel.add(btnLogout);
+            addButton(sidePanel, btnDashboard);
+            addSpacer(sidePanel, 10);
+            addSectionLabel(sidePanel, "RECORDS (View Only)");
+            addButton(sidePanel, btnResidents);
+            addButton(sidePanel, btnHouseholds);
+            addButton(sidePanel, btnChildren);
+            addButton(sidePanel, btnSenior);
+            addButton(sidePanel, btnAdult);
+            addSpacer(sidePanel, 10);
+            addSectionLabel(sidePanel, "FEATURES (Editable)");
+            addButton(sidePanel, btnProjects);
+            addButton(sidePanel, btnFinancial);
+            sidePanel.add(Box.createVerticalGlue()); // Push logout to bottom
+            addButton(sidePanel, btnLogout);
         } else {
             // Default/fallback menu
-            sidePanel.setLayout(new GridLayout(3, 1, 8, 8));
-            sidePanel.add(btnHome);
-            sidePanel.add(new JPanel()); // Spacer
-            sidePanel.add(btnLogout);
+            addButton(sidePanel, btnDashboard);
+            sidePanel.add(Box.createVerticalGlue()); // Push logout to bottom
+            addButton(sidePanel, btnLogout);
         }
 
         // Main Panel
@@ -155,7 +154,28 @@ public class Dashboard extends JFrame {
         button.setFocusPainted(false);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.addActionListener(listener);
+        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        button.setAlignmentX(Component.LEFT_ALIGNMENT);
         return button;
+    }
+
+    private void addButton(JPanel panel, JButton button) {
+        panel.add(button);
+        panel.add(Box.createRigidArea(new Dimension(0, 5)));
+    }
+
+    private void addSectionLabel(JPanel panel, String text) {
+        JLabel label = new JLabel(text);
+        label.setForeground(new Color(180, 180, 180));
+        label.setFont(new Font("Arial", Font.BOLD, 11));
+        label.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(label);
+        panel.add(Box.createRigidArea(new Dimension(0, 5)));
+    }
+
+    private void addSpacer(JPanel panel, int height) {
+        panel.add(Box.createRigidArea(new Dimension(0, height)));
     }
 
     private void showHomePanel() {

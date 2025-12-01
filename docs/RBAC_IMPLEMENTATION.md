@@ -83,7 +83,7 @@ INSERT INTO `roles` (`role_id`, `role_name`) VALUES
 ### Administrator Menu
 ```
 ┌─────────────────────┐
-│ Home                │
+│ Dashboard           │
 ├─────────────────────┤
 │ Records             │
 ├─────────────────────┤
@@ -113,7 +113,7 @@ INSERT INTO `roles` (`role_id`, `role_name`) VALUES
 ### Staff Menu
 ```
 ┌─────────────────────────┐
-│ Home                    │
+│ Dashboard               │
 ├─────────────────────────┤
 │ Records (View Only)     │
 ├─────────────────────────┤

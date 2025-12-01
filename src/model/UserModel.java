@@ -217,7 +217,7 @@ public class UserModel {
             String salt = PasswordHashing.generateSalt();
             String hashedPassword = PasswordHashing.hashPassword(password, salt);
             
-            String sql = "INSERT INTO users (username, password, salt, fullname, email, role_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)";
+            String sql = "INSERT INTO users (username, hashed_password, salt, fullname, email, role_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)";
             PreparedStatement ps = conn.prepareStatement(sql);
             ps.setString(1, username);
             ps.setString(2, hashedPassword);
@@ -264,7 +264,7 @@ public class UserModel {
                 String salt = PasswordHashing.generateSalt();
                 String hashedPassword = PasswordHashing.hashPassword(password, salt);
                 
-                sql = "UPDATE users SET username=?, password=?, salt=?, fullname=?, email=?, role_id=?, status=? WHERE user_id=?";
+                sql = "UPDATE users SET username=?, hashed_password=?, salt=?, fullname=?, email=?, role_id=?, status=? WHERE user_id=?";
                 ps = conn.prepareStatement(sql);
                 ps.setString(1, username);
                 ps.setString(2, hashedPassword);
